@@ -1,0 +1,45 @@
+# EMGNNImproved configuration
+# Optimised hyperparameters with architectural improvements
+
+model:
+  backbone: gcn              # gcn | gat | gin | sage
+  hidden: 64
+  n_layers: 3
+  nb_heads: 1
+  dropout: 0.5
+  alpha: 0.2
+  # Improvement flags
+  use_residual: true         # skip connections between GNN layers
+  use_batchnorm: true        # batch normalisation after each layer
+  use_network_weights: true  # learnable per-PPI-network importance scalars
+  label_smoothing: 0.05      # epsilon for label smoothing (0 = off)
+
+training:
+  lr: 0.005
+  weight_decay: 5e-4
+  epochs: 2000
+  patience: 250
+  seed: 72
+  lr_scheduler: cosine       # cosine | step | none
+
+feature_engineering:
+  normalize: standard        # standard | minmax | none
+  feature_selection: true    # drop near-zero-variance features
+  use_pca: false
+  pca_components: null
+
+dataset:
+  networks:
+    - IREF_2015
+    - IREF
+    - STRING
+    - PCNET
+    - MULTINET
+    - CPDB                   # last = test set
+  add_structural_noise: 0.0
+
+explainability:
+  edge_explain: true
+  node_explain: true
+  gsea_mode: enrichr         # enrichr | preranked | hallmark
+  top_n_genes: 200

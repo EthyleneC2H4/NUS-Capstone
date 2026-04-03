@@ -1,0 +1,31 @@
+# Benchmark EMGNN configuration
+# Reproduces Table 1 of Chatzianastasis et al. (2023)
+
+model:
+  backbone: gcn          # gcn | gat | gin
+  hidden: 64
+  n_layers: 3
+  nb_heads: 1            # for GAT only
+  dropout: 0.5
+  alpha: 0.2             # LeakyReLU negative slope
+
+training:
+  lr: 0.005
+  weight_decay: 5e-4
+  epochs: 2000
+  patience: 250
+  seed: 72
+
+dataset:
+  networks:
+    - IREF_2015
+    - IREF
+    - STRING
+    - PCNET
+    - MULTINET
+    - CPDB               # last = test set
+  add_structural_noise: 0.0
+
+explainability:
+  edge_explain: false
+  node_explain: false
