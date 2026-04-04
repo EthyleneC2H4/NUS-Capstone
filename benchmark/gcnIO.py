@@ -28,8 +28,40 @@ def load_hdf_data(path, network_name='network', feature_name='features'):
     A tuple with all of the data in the order: network, features, y_train, y_val,
     y_test, train_mask, val_mask, test_mask, node names.
     """
+    # Cache sparse edge indices next to the HDF5 file to avoid re-reading
+    # the huge dense matrix on every run.
+    cache_path = Path(path).with_suffix('.sparse_cache.npz')
+    if cache_path.exists():
+        _c = np.load(str(cache_path))
+        _rows, _cols, _n = _c['rows'], _c['cols'], int(_c['n'])
+        network = sp.csr_matrix(
+            (np.ones(len(_rows), dtype=np.float32), (_rows, _cols)),
+            shape=(_n, _n),
+        )
+    else:
+        with h5py.File(path, 'r') as f:
+            # Read in chunks: avoids materialising huge dense matrix in RAM
+            # (PCNet 19781×19781 float64 ≈ 3 GB)
+            network_ds = f[network_name]
+            n = network_ds.shape[0]
+            chunk = 2000
+            rows_all, cols_all = [], []
+            for i in range(0, n, chunk):
+                end = min(i + chunk, n)
+                block = network_ds[i:end, :]
+                r, c = np.nonzero(block)
+                rows_all.append(r + i)
+                cols_all.append(c)
+        rows_cat = np.concatenate(rows_all).astype(np.int32)
+        cols_cat = np.concatenate(cols_all).astype(np.int32)
+        network = sp.csr_matrix(
+            (np.ones(len(rows_cat), dtype=np.float32), (rows_cat, cols_cat)),
+            shape=(n, n),
+        )
+        np.savez_compressed(str(cache_path),
+                            rows=rows_cat, cols=cols_cat, n=np.array(n))
+
     with h5py.File(path, 'r') as f:
-        network = f[network_name][:]
         features = f[feature_name][:]
         node_names = f['gene_names'][:]
         y_train = f['y_train'][:]

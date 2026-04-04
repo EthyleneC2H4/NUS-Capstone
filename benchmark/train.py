@@ -30,7 +30,14 @@ from captum_custom import to_captum,Explainer
 import itertools
 from torch_geometric.utils import add_self_loops,to_undirected,dropout_adj
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def _get_device(use_gpu: bool):
+    if not use_gpu:
+        return torch.device("cpu")
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
 
  
 # Training settings
@@ -78,7 +85,8 @@ parser.add_argument('-dataset', '--dataset',
 
 
 args = parser.parse_args()
-args.cuda = not args.no_cuda and torch.cuda.is_available()
+args.cuda = not args.no_cuda and (torch.cuda.is_available() or torch.backends.mps.is_available())
+device = _get_device(args.cuda)
 
 def find_model_name(args):
     if(args.gcn):
@@ -95,11 +103,9 @@ def find_model_name(args):
         print("No model selected. Use --gcn True or --gat True to select the gnn model for emgnn or --mlp True for the baseline MLP")
         exit()
 
-def accuracy(output, labels):  
+def accuracy(output, labels):
     preds = output.max(1)[1].type_as(labels)
-    #preds = (output>0).float() #this accuracy when we use BCEWithLogitsLoss with 1 output.
-    print("Number of predicted positive",preds.sum(),"/",preds.shape[0])
-    correct = preds.eq(labels).double()
+    correct = preds.eq(labels).float()   # float32 for MPS compatibility
     correct = correct.sum()
     return correct / len(labels)
 
@@ -108,31 +114,25 @@ def train(epoch):
 
     t = time.time()
     model.train()
-    data = next(iter(loader)).cuda()
+    data = next(iter(loader)).to(device)
     optimizer.zero_grad()
     if(args.mlp):
-        output = model(meta_x.float().cuda()).squeeze()
+        output = model(meta_x.float().to(device)).squeeze()
     else:
-        output = model(data.x.float().cuda(),data.edge_index.cuda(),data).squeeze()
+        output = model(data.x.float().to(device),data.edge_index.to(device),data).squeeze()
         output = output[number_of_input_nodes:]
-    #g = make_dot(output, model.state_dict())
-    #g.view()
-    #loss_train = F.nll_loss(output[idx_train], y_train)
     loss_train = loss(output[idx_train], meta_y[idx_train])
     acc_train = accuracy(output[idx_train], meta_y[idx_train])
     loss_train.backward()
-    #plot_grad_flow2(model.named_parameters())
 
     optimizer.step()
 
     if not args.fastmode:
-        # Evaluate validation set performance separately,
-        # deactivates dropout during validation run.
         model.eval()
         if(args.mlp):
-            output = model(meta_x.float().cuda()).squeeze()
+            output = model(meta_x.float().to(device)).squeeze()
         else:
-            output = model(data.x.float().cuda(),data.edge_index.cuda(),data).squeeze()
+            output = model(data.x.float().to(device),data.edge_index.to(device),data).squeeze()
             output = output[number_of_input_nodes:]
         
     #loss_val = F.nll_loss(output[idx_val],y_val)
@@ -161,12 +161,12 @@ def train(epoch):
 
 def compute_test(write_results=True,accs=[]):
     model.eval()
-    data = next(iter(loader)).cuda()
-    
+    data = next(iter(loader)).to(device)
+
     if(args.mlp):
-        output = model(meta_x.float().cuda()).squeeze()
+        output = model(meta_x.float().to(device)).squeeze()
     else:
-        output = model(data.x.float().cuda(),data.edge_index.cuda(),data).squeeze()
+        output = model(data.x.float().to(device),data.edge_index.to(device),data).squeeze()
         output = output[number_of_input_nodes:]
 
     
@@ -287,13 +287,21 @@ for path in paths:
     idx_train = [i for i, x in enumerate(train_mask) if x == 1]
     idx_val = [i for i, x in enumerate(val_mask) if x == 1]
     idx_test = [i for i, x in enumerate(test_mask) if x == 1]
-    adj = torch.FloatTensor(np.array(adj))
+    import scipy.sparse as sp
+    # adj is now a scipy sparse CSR matrix — extract edge indices without
+    # ever materialising the full dense tensor (saves ~3 GB for PCNET)
+    if sp.issparse(adj):
+        rows, cols = adj.nonzero()
+        edge_index = torch.tensor(np.vstack([rows, cols]), dtype=torch.long)
+    else:
+        adj_t = torch.FloatTensor(np.array(adj))
+        edge_index = (adj_t > 0).nonzero().t()
     features = torch.FloatTensor(features)
 
-    
-    y_train = torch.LongTensor(y_train[train_mask.astype(np.bool)]).squeeze()
-    y_val = torch.LongTensor(y_val[val_mask.astype(np.bool)]).squeeze()
-    y_test = torch.LongTensor(y_test[test_mask.astype(np.bool)]).squeeze()
+
+    y_train = torch.LongTensor(y_train[train_mask.astype(bool)]).squeeze()
+    y_val = torch.LongTensor(y_val[val_mask.astype(bool)]).squeeze()
+    y_test = torch.LongTensor(y_test[test_mask.astype(bool)]).squeeze()
 
     idx_train = torch.LongTensor(idx_train)
     idx_val = torch.LongTensor(idx_val)
@@ -308,7 +316,6 @@ for path in paths:
     num_negatives = len(y_train) - num_positives
     pos_weight  = num_negatives / num_positives
 
-    edge_index = (adj > 0).nonzero().t()
     edge_index,_ = add_self_loops(edge_index)
 
     if(args.add_structural_noise>0): #add structural noise
@@ -403,14 +410,15 @@ batch = next(iter(loader))
 # print(batch.edge_index.shape)
 
 number_of_input_nodes = batch.x.shape[0]
+meta_y = meta_y.squeeze()   # always squeeze regardless of device
 if args.cuda:
-    meta_y = meta_y.squeeze().cuda()
-    idx_train = idx_train.cuda()
-    idx_test = idx_test.cuda()
-    idx_val = idx_val.cuda()
-    pos_weight= pos_weight.cuda()
-    batch = batch.cuda()
-    meta_x= meta_x.cuda()
+    meta_y   = meta_y.to(device)
+    idx_train = idx_train.to(device)
+    idx_test  = idx_test.to(device)
+    idx_val   = idx_val.to(device)
+    pos_weight= pos_weight.to(device)
+    batch     = batch.to(device)
+    meta_x    = meta_x.to(device)
 
  
 
@@ -428,7 +436,7 @@ else:
 
 
 if args.cuda:
-    model = model.cuda()
+    model = model.to(device)
 
 optimizer = optim.Adam(model.parameters(), 
                        lr=args.lr, 
@@ -493,7 +501,7 @@ print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
 
 # Restore best model
 print('Loading {}th epoch'.format(best_epoch))
-model.load_state_dict(torch.load('{}.pkl'.format(best_epoch)))
+model.load_state_dict(torch.load('{}.pkl'.format(best_epoch), map_location=device))
 # Testing
 test_performance = compute_test(write_results=True,accs=accs)
 
@@ -557,7 +565,7 @@ with open(f"{model_dir}/all_node_names.pkl","wb") as handle:
 with open(f"{model_dir}/edge_index.pkl","wb") as handle:
     pickle.dump(batch.edge_index.cpu(),handle)
 
-final_edge_index = torch.concat([batch.edge_index.cuda(),model.meta_edge_index.cuda()],dim=1).cuda()
+final_edge_index = torch.concat([batch.edge_index.to(device),model.meta_edge_index.to(device)],dim=1).to(device)
 with open(f"{model_dir}/final_edge_index.pkl","wb") as handle:
     pickle.dump(final_edge_index.cpu(),handle)
 

@@ -57,26 +57,22 @@ class EMGNN(torch.nn.Module):
             meta_edge_index[0].append(i)  #input node
             meta_edge_index[1].append(node2idx[tuple(node)]+x.shape[0]) #add metanode       
         
-        self.meta_edge_index  = torch.tensor(meta_edge_index).cuda()
+        # defer device placement to forward() via .to(device) calls
+        self.meta_edge_index  = torch.tensor(meta_edge_index)
         self.meta_edge_index,_ = add_self_loops(self.meta_edge_index)
-        #we also have to init some node features for the metanodes and concat them to the x tensor.
-        #self.meta_x = torch.zeros((len(node2idx),hidden_channels)).cuda()
-        #self.meta_x = torch.rand((len(node2idx),hidden_channels)).cuda()
-        self.meta_x = meta_x.cuda()
+        self.meta_x = meta_x
     
-    def forward(self, x, edge_index, data, meta_edge_index = None, explain_x=None, captum=False, explain=False, edge_weight=None):  
+    def forward(self, x, edge_index, data, meta_edge_index = None, explain_x=None, captum=False, explain=False, edge_weight=None):
+        _dev = x.device
         if(captum==True and meta_edge_index!=None):
             meta_x = x[self.nb_nodes:]
             x = x[:self.nb_nodes]
             pass
         if(meta_edge_index!=None):
             self.meta_edge_index = meta_edge_index
-     
-        #x = torch.concat((x,self.meta_x),dim=0)
-        #x = x.cuda()
-        #x = data.x.float().cuda()
+        self.meta_edge_index = self.meta_edge_index.to(_dev)
+        self.meta_x = self.meta_x.to(_dev)
         number_of_nodes = x.shape[0]
-        #edge_index = data.edge_index.cuda()
         ### only for explainer
         if(explain==True):
             

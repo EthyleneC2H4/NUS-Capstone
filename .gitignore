@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pkl
+*.npz
+*.h5
+nohup.out
+*.sparse_cache.npz

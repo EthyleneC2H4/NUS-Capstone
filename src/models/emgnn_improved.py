@@ -212,13 +212,10 @@ class EMGNNImproved(torch.nn.Module):
         improves calibration and generalisation.
         """
         if self.label_smoothing > 0.0:
-            K = output.shape[1]
-            smooth = self.label_smoothing
-            # convert to one-hot then smooth
-            one_hot = torch.zeros_like(output).scatter_(
-                1, labels.unsqueeze(1), 1.0
-            )
-            smooth_targets = one_hot * (1.0 - smooth) + smooth / K
-            log_prob = F.log_softmax(output, dim=1)
-            return -(smooth_targets * log_prob).sum(dim=1).mean()
+            # output is already log_softmax (from forward)
+            # Simple label-smoothing: blend NLL loss with uniform distribution loss
+            eps = self.label_smoothing
+            nll = F.nll_loss(output, labels)
+            uniform = -output.mean()   # mean over all classes and samples
+            return (1.0 - eps) * nll + eps * uniform
         return F.nll_loss(output, labels)

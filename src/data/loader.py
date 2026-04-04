@@ -130,9 +130,16 @@ def load_multi_network_data(
             if meta_y[idx] == 0:
                 meta_y[idx] = label.float()
 
-        # ── Build edge index ───────────────────────────────────────────────
-        adj_tensor = torch.FloatTensor(np.array(adj))
-        edge_index = (adj_tensor > 0).nonzero().t().contiguous()
+        # ── Build edge index (sparse-safe, avoids huge dense tensor) ──────
+        import scipy.sparse as sp
+        if sp.issparse(adj):
+            rows, cols = adj.nonzero()
+            edge_index = torch.tensor(
+                np.vstack([rows, cols]), dtype=torch.long
+            ).contiguous()
+        else:
+            adj_tensor = torch.FloatTensor(np.array(adj))
+            edge_index = (adj_tensor > 0).nonzero().t().contiguous()
         edge_index, _ = add_self_loops(edge_index)
 
         if add_structural_noise > 0:
@@ -156,7 +163,7 @@ def load_multi_network_data(
 
     n_unique = len(node2idx)
     meta_x = meta_x_raw[:n_unique]
-    meta_y = torch.tensor(meta_y[:n_unique]).type(torch.LongTensor)
+    meta_y = torch.tensor(meta_y[:n_unique]).type(torch.LongTensor).squeeze()
 
     # ── Build global train / val / test sets on meta-nodes ─────────────────
     train_set = {tuple(n) for lst in train_nodes_list for n in lst}
