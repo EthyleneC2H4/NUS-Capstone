@@ -30,6 +30,8 @@ def main():
     p.add_argument('--study_name',        type=str, default=None)
     p.add_argument('--storage',           type=str, default=None,
                    help='SQLite URL for persistent study, e.g. sqlite:///study.db')
+    p.add_argument('--seed',              type=int, default=42,
+                   help='Random seed for Optuna TPE sampler (default: 42)')
     args = p.parse_args()
 
     result = run_hparam_search(
@@ -39,6 +41,7 @@ def main():
         patience_per_trial=args.patience_per_trial,
         study_name=args.study_name,
         storage=args.storage,
+        seed=args.seed,
     )
 
     # Save best params

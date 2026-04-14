@@ -3,7 +3,11 @@ Improved EMGNN model with the following enhancements over the benchmark:
 
 1. Residual connections - skip connections between GNN layers to improve gradient flow
    and allow training deeper networks.
-2. Batch normalization - stabilises training and acts as regularisation.
+2. Normalisation options (norm_type parameter):
+   - 'batch'  : BatchNorm1d  (default; NOTE: harmful on full-batch graphs — use 'none')
+   - 'graph'  : GraphNorm    (designed for GNNs; normalises per-graph, not per-batch)
+   - 'layer'  : LayerNorm    (normalises over feature dimension; works on any batch size)
+   - 'none'   : no normalisation
 3. Learnable network-importance weights - a softmax-normalised scalar per PPI network
    so the model can weight each network's contribution to the meta graph.
 4. GraphSAGE (--sage) as an additional backbone option.
@@ -14,7 +18,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import GCNConv, GATConv, GINConv, SAGEConv
+from torch_geometric.nn import GCNConv, GATConv, GINConv, SAGEConv, GraphNorm
 from torch_geometric.utils import add_self_loops
 
 
@@ -55,7 +59,14 @@ class EMGNNImproved(torch.nn.Module):
     use_residual : bool
         Add identity skip-connections after every GNN layer (depth ≥ 2).
     use_batchnorm : bool
-        Apply BatchNorm1d after every GNN layer and after the meta-GNN.
+        Deprecated shorthand — kept for backward compatibility.
+        Equivalent to norm_type='batch'. If False, sets norm_type='none'.
+    norm_type : str
+        Normalisation to apply after each GNN layer. One of:
+        'batch'  — BatchNorm1d (default; harmful on full-batch graphs)
+        'graph'  — GraphNorm (GNN-aware, recommended alternative to BatchNorm)
+        'layer'  — LayerNorm (works for any batch size)
+        'none'   — no normalisation
     use_network_weights : bool
         Learn a softmax-normalised scalar weight for each input PPI network.
         The weight is applied to the initial node representation before
@@ -82,6 +93,7 @@ class EMGNNImproved(torch.nn.Module):
         node2idx=None,
         use_residual: bool = True,
         use_batchnorm: bool = True,
+        norm_type: str = 'batch',
         use_network_weights: bool = True,
         label_smoothing: float = 0.0,
     ):
@@ -89,7 +101,11 @@ class EMGNNImproved(torch.nn.Module):
 
         self.args = args
         self.use_residual = use_residual
-        self.use_batchnorm = use_batchnorm
+        # Resolve norm_type: use_batchnorm=False overrides to 'none' for backward compat
+        if not use_batchnorm:
+            norm_type = 'none'
+        self.norm_type = norm_type
+        self.use_batchnorm = (norm_type != 'none')  # kept for backward compat checks
         self.use_network_weights = use_network_weights
         self.label_smoothing = label_smoothing
         self.n_layers = n_layers
@@ -108,12 +124,24 @@ class EMGNNImproved(torch.nn.Module):
             for _ in range(n_layers)
         ])
 
-        # ── Batch-norm stack ───────────────────────────────────────────────
-        if use_batchnorm:
-            self.bn_layers = nn.ModuleList([
-                nn.BatchNorm1d(hidden_channels) for _ in range(n_layers)
-            ])
-            self.meta_bn = nn.BatchNorm1d(hidden_channels)
+        # ── Normalisation stack ────────────────────────────────────────────
+        def _make_norm(channels):
+            if norm_type == 'batch':
+                return nn.BatchNorm1d(channels)
+            elif norm_type == 'graph':
+                return GraphNorm(channels)
+            elif norm_type == 'layer':
+                return nn.LayerNorm(channels)
+            else:
+                return None
+
+        if norm_type != 'none':
+            norms = [_make_norm(hidden_channels) for _ in range(n_layers)]
+            self.bn_layers = nn.ModuleList(norms)
+            self.meta_bn = _make_norm(hidden_channels)
+        else:
+            self.bn_layers = None
+            self.meta_bn = None
 
         # ── Meta-graph GNN ─────────────────────────────────────────────────
         self.meta_gnn = _build_conv(args, hidden_channels, hidden_channels)
@@ -175,11 +203,11 @@ class EMGNNImproved(torch.nn.Module):
             node_w = w[data.batch]          # shape: (total_nodes,)
             x = x * node_w.unsqueeze(1)    # broadcast over feature dim
 
-        # ── 3. Graph-level message passing with residual + BN ──────────────
+        # ── 3. Graph-level message passing with residual + normalisation ──────
         for i in range(self.n_layers):
             identity = x
             x = self.conv[i](x, edge_index)
-            if self.use_batchnorm:
+            if self.bn_layers is not None:
                 x = self.bn_layers[i](x)
             x = self.leakyrelu(x)
             # skip connection from layer 1 onward (dims always match here)
@@ -190,7 +218,7 @@ class EMGNNImproved(torch.nn.Module):
         # ── 4. Meta-graph message passing ──────────────────────────────────
         x_all = torch.cat([x, meta_x_proj], dim=0)
         x_all = self.meta_gnn(x_all, meta_edge_index_use)
-        if self.use_batchnorm:
+        if self.meta_bn is not None:
             x_all = self.meta_bn(x_all)
         x_all = self.leakyrelu(x_all)
         x_all = F.dropout(x_all, self.dropout, training=self.training)

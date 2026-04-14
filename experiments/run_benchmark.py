@@ -17,6 +17,9 @@ Usage
 
     # Run MLP baseline
     python experiments/run_benchmark.py --mlp 1
+
+    # Reproducible run (fixed random seed)
+    python experiments/run_benchmark.py --gcn 1 --seed 42
 """
 
 import subprocess
@@ -27,7 +30,9 @@ BENCHMARK_DIR = Path(__file__).parents[1] / 'benchmark'
 
 
 def main():
-    # Forward all arguments to the original train.py
+    # Forward all arguments to the original train.py.
+    # benchmark/train.py already accepts --seed (default 72); passing it here
+    # makes reproducibility explicit at the experiments/ layer.
     cmd = [sys.executable, str(BENCHMARK_DIR / 'train.py')] + sys.argv[1:]
     print(f"Running benchmark: {' '.join(cmd)}")
     subprocess.run(cmd, check=True, cwd=str(BENCHMARK_DIR))

@@ -256,10 +256,44 @@ pip install -r requirements.txt
 
 ### 2. Data Preparation
 
-Data is identical to the EMOGI benchmark (Schulte-Sasse et al., 2021).
-Follow the instructions at https://github.com/schulter/EMOGI to download the 6 PPI networks.
+Data is from the EMOGI benchmark (Schulte-Sasse et al., 2021). The six multi-omics HDF5 files must be downloaded from Zenodo and placed under `results/`.
 
-Expected directory layout (place under `results/`):
+**Step 1 — Download from Zenodo**
+
+```bash
+# EMOGI dataset (Zenodo record 3707301)
+# Six HDF5 files totalling ~2 GB; requires an internet connection.
+pip install zenodo-get   # or: pip install requests tqdm
+
+# Option A: zenodo-get (recommended)
+zenodo_get 3707301 -o ./zenodo_data
+
+# Option B: direct wget (adjust URLs if the record changes)
+mkdir -p ./zenodo_data
+wget -P ./zenodo_data \
+  "https://zenodo.org/record/3707301/files/CPDB_multiomics.h5" \
+  "https://zenodo.org/record/3707301/files/IREF_multiomics.h5" \
+  "https://zenodo.org/record/3707301/files/IREF_2015_multiomics.h5" \
+  "https://zenodo.org/record/3707301/files/MULTINET_multiomics.h5" \
+  "https://zenodo.org/record/3707301/files/PCNET_multiomics.h5" \
+  "https://zenodo.org/record/3707301/files/STRINGdb_multiomics.h5"
+```
+
+**Step 2 — Place files in the expected layout**
+
+```bash
+mkdir -p results/EMOGI_CPDB results/EMOGI_IRefIndex results/EMOGI_IRefIndex_2015 \
+         results/EMOGI_Multinet results/EMOGI_PCNet results/EMOGI_STRINGdb
+
+cp ./zenodo_data/CPDB_multiomics.h5       results/EMOGI_CPDB/
+cp ./zenodo_data/IREF_multiomics.h5       results/EMOGI_IRefIndex/
+cp ./zenodo_data/IREF_2015_multiomics.h5  results/EMOGI_IRefIndex_2015/
+cp ./zenodo_data/MULTINET_multiomics.h5   results/EMOGI_Multinet/
+cp ./zenodo_data/PCNET_multiomics.h5      results/EMOGI_PCNet/
+cp ./zenodo_data/STRINGdb_multiomics.h5   results/EMOGI_STRINGdb/
+```
+
+Final layout:
 ```
 results/
 ├── EMOGI_CPDB/CPDB_multiomics.h5
@@ -276,6 +310,24 @@ Each HDF5 file contains:
 - `gene_names` — gene identifiers (Ensembl ID + HGNC symbol)
 - `y_train`, `y_val`, `y_test` — cancer/non-cancer labels
 - `mask_train`, `mask_val`, `mask_test` — train/val/test masks
+
+**Verify download**
+
+```bash
+python -c "
+import h5py, os
+files = ['results/EMOGI_CPDB/CPDB_multiomics.h5',
+         'results/EMOGI_IRefIndex/IREF_multiomics.h5',
+         'results/EMOGI_IRefIndex_2015/IREF_2015_multiomics.h5',
+         'results/EMOGI_Multinet/MULTINET_multiomics.h5',
+         'results/EMOGI_PCNet/PCNET_multiomics.h5',
+         'results/EMOGI_STRINGdb/STRINGdb_multiomics.h5']
+for f in files:
+    with h5py.File(f) as h:
+        n = h['features'].shape[0]
+        print(f'{os.path.basename(f)}: {n} genes, {h[\"features\"].shape[1]} features')
+"
+```
 
 ---
 
@@ -388,12 +440,14 @@ python experiments/run_gsea.py \
 | `--epochs` | 2000 | Max training epochs |
 | `--patience` | 250 | Early-stopping patience |
 | `--use_residual` | True | Residual skip connections |
-| `--use_batchnorm` | True | Batch normalisation |
+| `--use_batchnorm` | True | Deprecated: use `--norm_type` instead |
+| `--norm_type` | batch | Normalisation: `batch`\|`graph`\|`layer`\|`none` — use `none` or `graph` for best results |
 | `--use_net_weights` | True | Per-network importance weights |
 | `--label_smoothing` | 0.05 | Label smoothing epsilon |
 | `--lr_scheduler` | cosine | LR schedule: cosine/step/none |
 | `--normalize` | standard | Feature norm: standard/minmax/none |
 | `--feature_select` | True | Variance-threshold feature selection |
+| `--seed` | 72 | Random seed for reproducibility |
 | `--dataset` | all 6 | PPI networks (last = test set) |
 
 ---

@@ -32,6 +32,7 @@ def run_hparam_search(
     device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
     study_name: Optional[str] = None,
     storage: Optional[str] = None,
+    seed: int = 42,
 ) -> dict:
     """
     Run Optuna Bayesian search over EMGNN hyperparameters.
@@ -137,7 +138,7 @@ def run_hparam_search(
 
     study = optuna.create_study(
         direction='maximize',
-        sampler=optuna.samplers.TPESampler(seed=42),
+        sampler=optuna.samplers.TPESampler(seed=seed),
         pruner=optuna.pruners.MedianPruner(n_warmup_steps=5),
         study_name=study_name,
         storage=storage,

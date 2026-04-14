@@ -66,7 +66,11 @@ def parse_args():
     p.add_argument('--use_residual',    default=True,
                    type=lambda x: x in ('1','True','true'))
     p.add_argument('--use_batchnorm',   default=True,
-                   type=lambda x: x in ('1','True','true'))
+                   type=lambda x: x in ('1','True','true'),
+                   help='Deprecated: use --norm_type instead. False sets norm_type=none.')
+    p.add_argument('--norm_type',       type=str, default='batch',
+                   choices=['batch', 'graph', 'layer', 'none'],
+                   help='Normalisation type: batch (default, harmful), graph (recommended), layer, none')
     p.add_argument('--use_net_weights', default=True,
                    type=lambda x: x in ('1','True','true'))
     p.add_argument('--label_smoothing', type=float, default=0.05)
@@ -121,7 +125,8 @@ def main():
     print(f"EMGNNImproved  |  backbone: "
           f"{'GCN' if args.gcn else 'GAT' if args.gat else 'GIN' if args.gin else 'SAGE'}")
     print(f"Networks: {args.dataset}")
-    print(f"residual={args.use_residual}  batchnorm={args.use_batchnorm}  "
+    norm_display = getattr(args, 'norm_type', 'batch') if args.use_batchnorm else 'none'
+    print(f"residual={args.use_residual}  norm={norm_display}  "
           f"net_weights={args.use_net_weights}")
     print(f"lr_scheduler={args.lr_scheduler}  label_smooth={args.label_smoothing}")
     print(f"normalize={args.normalize}  feature_select={args.feature_select}")
@@ -162,6 +167,7 @@ def main():
         node2idx=info['node2idx'],
         use_residual=args.use_residual,
         use_batchnorm=args.use_batchnorm,
+        norm_type=getattr(args, 'norm_type', 'batch'),
         use_network_weights=args.use_net_weights,
         label_smoothing=args.label_smoothing,
     ).to(device)
@@ -193,6 +199,20 @@ def main():
     print(f"\nTest Results  |  "
           f"AUPR: {test_metrics['aupr']:.4f}  |  "
           f"AUROC: {test_metrics['auroc']:.4f}")
+
+    # ── Network importance weights ────────────────────────────────────────────
+    if model.network_weights is not None:
+        import torch.nn.functional as F
+        weights = F.softmax(model.network_weights.detach().cpu(), dim=0).numpy()
+        print("\nLearned per-network importance weights (softmax-normalised):")
+        for net_name, w in zip(args.dataset, weights):
+            print(f"  {net_name:<20}  {w:.4f}")
+        # Save weights to results file
+        os.makedirs('./results', exist_ok=True)
+        with open('./results/network_weights.txt', 'a') as fh:
+            fh.write(f"\n{args.dataset}  {('GCN' if args.gcn else 'GAT' if args.gat else 'GIN' if args.gin else 'SAGE')}\n")
+            for net_name, w in zip(args.dataset, weights):
+                fh.write(f"  {net_name}: {w:.4f}\n")
 
     # ── Save artefacts ────────────────────────────────────────────────────────
     backbone = ('GCN' if args.gcn else 'GAT' if args.gat else
