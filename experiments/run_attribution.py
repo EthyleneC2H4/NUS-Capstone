@@ -78,6 +78,10 @@ def main():
             args=args_model,
             data=batch,
             node2idx=node2idx,
+            use_residual=getattr(args_model, 'use_residual', True),
+            norm_type=getattr(args_model, 'norm_type', 'batch'),
+            use_network_weights=getattr(args_model, 'use_net_weights', True),
+            label_smoothing=getattr(args_model, 'label_smoothing', 0.0),
         ).to(device)
         model_type = 'EMGNNImproved'
     except Exception:
@@ -151,12 +155,22 @@ def main():
 
     if args.edge_explain:
         print("  Computing edge attributions …")
+        saved = 0
         for idx in indices[:10]:    # limit to 10 for speed
-            _, normed = analyzer.edge_attribution(idx)
-            analyzer.save(normed,
-                          os.path.join(out_dir,
-                                       f'edge_attr_{args.gene_label}_{idx}.pkl'))
-        print(f"  Edge attributions saved to {out_dir}/")
+            try:
+                _, normed = analyzer.edge_attribution(idx)
+                analyzer.save(normed,
+                              os.path.join(out_dir,
+                                           f'edge_attr_{args.gene_label}_{idx}.pkl'))
+                saved += 1
+            except RuntimeError as e:
+                if 'allow_unused' in str(e) or 'not have been used' in str(e):
+                    print(f"  ⚠ 边归因在当前 PyG 版本下不支持（{type(e).__name__}），已跳过。")
+                    print("    节点特征归因结果不受影响。")
+                    break
+                raise
+        if saved:
+            print(f"  Edge attributions saved to {out_dir}/ ({saved} genes)")
 
     print(f"\nDone. Attribution outputs in: {out_dir}")
 

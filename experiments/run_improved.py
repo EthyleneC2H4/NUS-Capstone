@@ -241,6 +241,19 @@ def main():
                 pass
     with open(f'{model_dir}/batch.pkl', 'wb') as fh:
         pickle.dump(info['batch'], fh)
+        
+    # Save extra artefacts needed by run_attribution.py
+    with open(f'{model_dir}/args.pkl', 'wb') as fh:
+        pickle.dump(args, fh)
+    with open(f'{model_dir}/meta_edge_index.pkl', 'wb') as fh:
+        pickle.dump(model.meta_edge_index.cpu(), fh)
+    n_input = info['number_of_input_nodes']
+    final_y = torch.cat([
+        torch.zeros(n_input, dtype=torch.long),
+        info['meta_y'].cpu(),
+    ])
+    with open(f'{model_dir}/final_y.pkl', 'wb') as fh:
+        pickle.dump(final_y, fh)
 
     # Append to global results
     os.makedirs('./results', exist_ok=True)

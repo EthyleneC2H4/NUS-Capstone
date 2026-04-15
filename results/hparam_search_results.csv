@@ -1,0 +1,2 @@
+lr,hidden,n_layers,dropout,weight_decay,use_residual,use_batchnorm,label_smoothing,lr_scheduler,best_aupr
+0.001758428376076581,32,4,0.2111702475313036,1.0011171503943842e-05,True,False,0.003471680701153751,step,0.8023131635280762

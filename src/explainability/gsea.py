@@ -83,7 +83,7 @@ class GSEAAnalyzer:
     def __init__(
         self,
         gene_set_library: str = 'MSigDB_Hallmark_2020',
-        organism: str = 'Human',
+        organism: str = 'human',
         fdr_threshold: float = 0.05,
     ):
         self.gene_set_library = gene_set_library

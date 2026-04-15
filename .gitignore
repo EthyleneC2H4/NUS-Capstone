@@ -5,3 +5,16 @@ __pycache__/
 *.h5
 nohup.out
 *.sparse_cache.npz
+.DS_Store
+
+# Shell scripts (local runners, not part of source)
+*.sh
+
+# Model directories (large; tracked via results files instead)
+results/my_models/
+
+# Large Optuna database
+results/hparam_search.db
+
+# Run logs
+results/run_all_*.log

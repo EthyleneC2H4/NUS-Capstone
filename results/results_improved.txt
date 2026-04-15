@@ -8,3 +8,25 @@
 ['CPDB']  GCN  residual:True  bn:False  net_w:True  n_layers:3  hidden:64  lr_sched:None  label_smooth:0.05  aupr:0.7409  auroc:0.8600
 ['STRING']  GCN  residual:True  bn:False  net_w:True  n_layers:3  hidden:64  lr_sched:None  label_smooth:0.05  aupr:0.7428  auroc:0.8777
 ['IREF_2015', 'MULTINET', 'CPDB']  GCN  residual:True  bn:False  net_w:True  n_layers:3  hidden:64  lr_sched:None  label_smooth:0.05  aupr:0.7894  auroc:0.8989
+['CPDB']  GCN  residual:True  bn:True  net_w:False  n_layers:3  hidden:64  lr_sched:None  label_smooth:0.0  aupr:0.7398  auroc:0.8649
+['CPDB']  GCN  residual:True  bn:True  net_w:False  n_layers:3  hidden:64  lr_sched:None  label_smooth:0.0  aupr:0.6800  auroc:0.8430
+['CPDB']  GCN  residual:True  bn:True  net_w:False  n_layers:3  hidden:64  lr_sched:cosine  label_smooth:0.0  aupr:0.7095  auroc:0.8542
+['CPDB']  GCN  residual:True  bn:True  net_w:False  n_layers:3  hidden:64  lr_sched:None  label_smooth:0.05  aupr:0.7375  auroc:0.8610
+['CPDB']  GCN  residual:True  bn:True  net_w:False  n_layers:3  hidden:64  lr_sched:None  label_smooth:0.0  aupr:0.7291  auroc:0.8667
+['CPDB']  GCN  residual:True  bn:True  net_w:False  n_layers:3  hidden:64  lr_sched:None  label_smooth:0.0  aupr:0.7167  auroc:0.8530
+['CPDB']  GCN  residual:True  bn:True  net_w:False  n_layers:3  hidden:64  lr_sched:cosine  label_smooth:0.05  aupr:0.7402  auroc:0.8621
+['CPDB']  GCN  residual:True  bn:True  net_w:True  n_layers:3  hidden:64  lr_sched:cosine  label_smooth:0.05  aupr:0.7450  auroc:0.8638
+['IREF_2015', 'CPDB']  GCN  residual:True  bn:True  net_w:True  n_layers:3  hidden:64  lr_sched:cosine  label_smooth:0.05  aupr:0.8018  auroc:0.9000
+['IREF_2015', 'MULTINET', 'CPDB']  GCN  residual:True  bn:True  net_w:True  n_layers:3  hidden:64  lr_sched:cosine  label_smooth:0.05  aupr:0.7931  auroc:0.9008
+['IREF_2015', 'IREF', 'STRING', 'PCNET', 'MULTINET', 'CPDB']  GCN  residual:True  bn:True  net_w:True  n_layers:3  hidden:64  lr_sched:cosine  label_smooth:0.05  aupr:0.8027  auroc:0.9148
+['CPDB']  GCN  residual:True  bn:True  net_w:False  n_layers:3  hidden:64  lr_sched:None  label_smooth:0.0  aupr:0.7360  auroc:0.8605
+['CPDB']  GCN  residual:True  bn:True  net_w:False  n_layers:3  hidden:64  lr_sched:None  label_smooth:0.0  aupr:0.6886  auroc:0.8443
+['CPDB']  GCN  residual:True  bn:True  net_w:False  n_layers:3  hidden:64  lr_sched:cosine  label_smooth:0.0  aupr:0.7029  auroc:0.8597
+['CPDB']  GCN  residual:True  bn:True  net_w:False  n_layers:3  hidden:64  lr_sched:None  label_smooth:0.05  aupr:0.7444  auroc:0.8656
+['CPDB']  GCN  residual:True  bn:True  net_w:False  n_layers:3  hidden:64  lr_sched:None  label_smooth:0.0  aupr:0.7056  auroc:0.8589
+['CPDB']  GCN  residual:True  bn:True  net_w:False  n_layers:3  hidden:64  lr_sched:None  label_smooth:0.0  aupr:0.7540  auroc:0.8615
+['CPDB']  GCN  residual:True  bn:True  net_w:False  n_layers:3  hidden:64  lr_sched:cosine  label_smooth:0.05  aupr:0.7435  auroc:0.8651
+['CPDB']  GCN  residual:True  bn:True  net_w:True  n_layers:3  hidden:64  lr_sched:cosine  label_smooth:0.05  aupr:0.7364  auroc:0.8603
+['IREF_2015', 'CPDB']  GCN  residual:True  bn:True  net_w:True  n_layers:3  hidden:64  lr_sched:cosine  label_smooth:0.05  aupr:0.7853  auroc:0.8989
+['IREF_2015', 'MULTINET', 'CPDB']  GCN  residual:True  bn:True  net_w:True  n_layers:3  hidden:64  lr_sched:cosine  label_smooth:0.05  aupr:0.7942  auroc:0.9018
+['IREF_2015', 'IREF', 'STRING', 'PCNET', 'MULTINET', 'CPDB']  GCN  residual:True  bn:True  net_w:True  n_layers:3  hidden:64  lr_sched:cosine  label_smooth:0.05  aupr:0.8067  auroc:0.9170

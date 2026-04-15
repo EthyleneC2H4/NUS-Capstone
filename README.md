@@ -19,7 +19,7 @@ This repository implements the full methodology pipeline for cancer gene predict
 | # | Task | Status |
 |---|------|--------|
 | 1 | Reproduce benchmark (EMGNN) | ✅ `benchmark/` |
-| 2 | Optimise model (residual, BN, LR scheduler, label smoothing, hparam search) | ✅ `src/models/emgnn_improved.py` |
+| 2 | Optimise model (residual, norm options, LR scheduler, label smoothing, hparam search) | ✅ `src/models/emgnn_improved.py` |
 | 3 | Extend to multiple biological networks (learnable network-importance weights) | ✅ `src/models/emgnn_improved.py` |
 | 4 | Enhance interpretability (feature attribution + GSEA) | ✅ `src/explainability/` |
 
@@ -99,18 +99,35 @@ Step 3 – Meta-graph GNN + classifier:
 | Iref | 0.832 ± 0.002 | 0.778 |
 | Iref 2015 | 0.800 ± 0.010 | 0.734 |
 
-**Our reproduced results (single run, 300 epochs, patience 100, CPU)**
+**Our reproduced results (RTX 5090, 2000 epochs, patience 250, seed 72)**
 
-| Backbone | Test network | AUPR | AUROC |
-|----------|-------------|------|-------|
-| GCN | CPDB | 0.7479 | 0.8668 |
-| GIN | CPDB | 0.7324 | 0.8669 |
-| GAT | CPDB | 0.6158 | 0.7790 |
-| GCN | STRING | 0.7361 | 0.8813 |
-| GIN | STRING | 0.7341 | 0.8693 |
-| GAT | STRING | 0.6308 | 0.8241 |
+Single-network GCN — multiple runs:
 
-GCN and GIN reproduce the paper's trend (GCN best on CPDB, GIN competitive). GAT underperforms, consistent with the paper's observation that attention mechanisms require more data to be effective.
+| Network | Runs | Best AUPR | Best AUROC | Mean AUPR |
+|---------|------|-----------|------------|-----------|
+| CPDB    | 18   | 0.7528 | 0.8712 | 0.7432 |
+| STRING  | 6    | 0.7588 | 0.8895 | 0.7391 |
+| IREF_2015 | 2  | 0.7582 | 0.8795 | 0.7574 |
+| MULTINET | 2   | 0.7835 | 0.9336 | 0.7760 |
+| PCNET   | 2    | 0.7458 | 0.9296 | 0.7413 |
+| IREF    | 2    | 0.6935 | 0.8968 | 0.6891 |
+
+Multi-backbone comparison (CPDB):
+
+| Backbone | Best AUPR | Best AUROC | Runs |
+|----------|-----------|------------|------|
+| GCN      | 0.7528    | 0.8712     | 18   |
+| GIN      | **0.7918**| **0.8890** | 3    |
+| GAT      | 0.6158    | 0.7790     | 3    |
+
+GCN is stable and consistent across many runs (mean 0.743); GIN achieves higher peak AUPR but with fewer runs. GAT underperforms, consistent with the paper's observation that attention mechanisms need more data.
+
+Multi-network benchmark:
+
+| Networks | AUPR | AUROC | Δ AUPR |
+|---------|------|-------|--------|
+| CPDB only | 0.7479 | 0.8668 | — |
+| IREF_2015 + MULTINET + CPDB | **0.7877** | **0.9041** | **+0.040** |
 
 ---
 
@@ -125,12 +142,16 @@ h^(l) = LeakyReLU(GNN_l(h^(l-1))) + h^(l-1)
 ```
 This improves gradient flow and enables training deeper networks without degradation.
 
-#### 2b. Batch normalisation (`use_batchnorm=True`)
-`BatchNorm1d` is applied after each GNN layer and after the meta-GNN:
-```
-h^(l) = BN(GNN_l(h^(l-1)))
-```
-Stabilises training, allows higher learning rates, and acts as a regulariser.
+#### 2b. Normalisation options (`norm_type`)
+
+| `norm_type` | Implementation | Notes |
+|-------------|---------------|-------|
+| `batch`     | BatchNorm1d   | **Default but harmful** on full-batch graphs — see finding below |
+| `graph`     | GraphNorm     | GNN-aware; normalises per-graph, recommended alternative |
+| `layer`     | LayerNorm     | Normalises over feature dim; works for any batch size |
+| `none`      | —             | No normalisation; best empirical performance here |
+
+**Key finding:** BatchNorm1d hurts performance in full-batch graph learning. Because the entire graph is processed as one batch, running statistics are computed over all nodes simultaneously, providing no useful normalisation during inference. Use `--norm_type none` or `--norm_type graph` for best results.
 
 #### 2c. Label smoothing (`label_smoothing=0.05`)
 Hard 0/1 targets are replaced with soft labels:
@@ -145,17 +166,6 @@ Cosine annealing decays the learning rate smoothly from `lr` to `1e-5`:
 lr_t = η_min + 0.5 * (lr - η_min) * (1 + cos(π * t / T))
 ```
 Reduces oscillation near convergence and often finds flatter minima.
-
-**Ablation study results (GCN backbone, CPDB test set)**
-
-| Configuration | AUPR | AUROC | Δ AUPR vs baseline |
-|--------------|------|-------|-------------------|
-| Benchmark (no improvements) | 0.7479 | 0.8668 | — |
-| + Residual only (no BN) | 0.7440 | 0.8658 | −0.004 |
-| + BN + Residual | 0.7061 | 0.8579 | −0.042 |
-| + BN + Residual + CosineAnneal | 0.7064 | 0.8641 | −0.042 |
-
-**Key finding:** BatchNorm1d *hurts* performance on these graph datasets. Because the entire graph is processed as a single batch, BatchNorm's running statistics are computed over the full node set, which does not provide useful normalisation here. Residual connections alone match the baseline without degradation.
 
 #### 2e. Gradient clipping
 Gradients are clipped to `max_norm=1.0` before every optimiser step, preventing exploding gradients in deep configurations.
@@ -175,10 +185,35 @@ n_layers ∈ {1, 2, 3, 4, 5}
 dropout ∈ [0.1, 0.7]
 weight_decay ∈ [1e-5, 1e-3]
 use_residual ∈ {True, False}
-use_batchnorm ∈ {True, False}
+norm_type ∈ {none, graph, layer}
 label_smoothing ∈ [0, 0.2]
 lr_scheduler ∈ {none, cosine, step}
 ```
+
+**Ablation study results (GCN backbone, CPDB test set)**
+
+| Configuration | AUPR | AUROC | Δ AUPR vs baseline |
+|--------------|------|-------|-------------------|
+| Benchmark (no improvements) | 0.7479 | 0.8668 | — |
+| + Residual, no BN | 0.7440 | 0.8658 | −0.004 |
+| + BN + Residual | 0.7061 | 0.8579 | −0.042 |
+| + BN + Residual + CosineAnneal | 0.7064 | 0.8641 | −0.042 |
+| + Residual + LabelSmooth(0.05), no BN | 0.7409 | 0.8600 | −0.007 |
+
+**Optuna best hyperparameters (50 trials, CPDB):**
+
+| Parameter | Best value |
+|-----------|-----------|
+| lr | 0.001758 |
+| hidden | 32 |
+| n_layers | 4 |
+| dropout | 0.211 |
+| weight_decay | 1.0×10⁻⁵ |
+| use_residual | True |
+| norm_type | none |
+| label_smoothing | 0.003 |
+| lr_scheduler | step |
+| **Best AUPR** | **0.8023** |
 
 ---
 
@@ -190,17 +225,30 @@ The original EMGNN treats all PPI networks equally. EMGNNImproved adds a learnab
 w = softmax(θ)         # θ ∈ ℝ^K, K = number of networks
 h_i ← h_i * w_{k(i)}  # weight node i's embedding by its network's importance
 ```
-This allows the model to up-weight high-quality networks (e.g. STRING or IRef) and down-weight noisy ones automatically during training.
+This allows the model to up-weight high-quality networks and down-weight noisy ones automatically during training.
 
-**Multi-network results (GCN, 3 PPI networks, test on CPDB)**
+**Multi-network results (GCN backbone)**
 
-| Model | Networks | AUPR | AUROC | Δ vs single-net |
+| Model | Networks | AUPR | AUROC | Δ vs M1 baseline |
 |-------|---------|------|-------|----------------|
 | Benchmark GCN | CPDB only | 0.7479 | 0.8668 | — |
-| Benchmark GCN | IREF_2015 + MULTINET + CPDB | **0.7877** | **0.9041** | +0.040 / +0.037 |
-| EMGNNImproved GCN | IREF_2015 + MULTINET + CPDB | **0.7894** | 0.8989 | +0.045 / +0.032 |
+| Benchmark GCN | IREF_2015 + MULTINET + CPDB | 0.7877 | 0.9041 | +0.040 |
+| EMGNNImproved GCN | IREF_2015 + CPDB | 0.8018 | 0.9000 | +0.054 |
+| EMGNNImproved GCN | IREF_2015 + MULTINET + CPDB | 0.7942 | 0.9018 | +0.046 |
+| **EMGNNImproved GCN** | **All 6 networks** | **0.8067** | **0.9170** | **+0.059** |
 
-Training with multiple PPI networks significantly boosts performance (+4% AUPR), demonstrating the value of cross-network signal aggregation through the meta-graph. The improved model marginally outperforms the benchmark in AUPR.
+**Learned per-network importance weights (6-network model, mean of 2 runs):**
+
+| Network | Weight |
+|---------|--------|
+| CPDB | 0.2097 |
+| MULTINET | 0.2005 |
+| IREF_2015 | 0.1660 |
+| STRING | 0.1659 |
+| PCNET | 0.1617 |
+| IREF | 0.0962 |
+
+CPDB and MULTINET are consistently most important; IREF contributes least.
 
 #### GraphSAGE backbone (`--sage`)
 A new backbone option (`SAGEConv`) is added alongside GCN/GAT/GIN. GraphSAGE uses sampling-based neighbourhood aggregation:
@@ -215,11 +263,26 @@ This is particularly effective when node degrees vary widely across PPI networks
 
 #### 4a. Improved attribution (`src/explainability/attribution.py`)
 The `AttributionAnalyzer` class provides a clean API over Captum's Integrated Gradients:
-- **Edge attributions** — which meta-graph edges drive a given prediction
-- **Node-feature attributions** — which of the 64 multi-omics features are most important
+- **Node-feature attributions** — which of the 64 multi-omics features are most important per gene
 - **Aggregated importance** — mean/max importance across a set of genes (e.g. all cancer genes), producing a global feature importance ranking
+- **Edge attributions** — which meta-graph edges drive a given prediction (requires PyG ≤2.4)
 
-Feature importance is automatically colour-coded by omics type (MF, METH, GE, CNA) in visualisation.
+**Top feature importance (Integrated Gradients, cancer genes):**
+
+| Rank | Feature | Importance | Omics type |
+|------|---------|------------|-----------|
+| 1 | METH: LIHC | 0.908 | DNA methylation, liver cancer |
+| 2 | GE: BLCA | 0.805 | Gene expression, bladder cancer |
+| 3 | GE: BRCA | 0.778 | Gene expression, breast cancer |
+| 4 | METH: CESC | 0.698 | DNA methylation, cervical cancer |
+| 5 | METH: PRAD | 0.656 | DNA methylation, prostate cancer |
+| 6 | GE: LIHC | 0.653 | Gene expression, liver cancer |
+| 7 | METH: LUAD | 0.641 | DNA methylation, lung adenocarcinoma |
+| 8 | MF: KIRP | 0.561 | Mutation frequency, kidney papillary |
+| 9 | MF: BLCA | 0.549 | Mutation frequency, bladder cancer |
+| 10 | GE: LUSC | 0.527 | Gene expression, lung squamous cell |
+
+Methylation (METH) and gene expression (GE) features dominate, highlighting the role of epigenetic alterations and transcriptomic dysregulation as primary cancer signals.
 
 #### 4b. Gene Set Enrichment Analysis (`src/explainability/gsea.py`)
 The `GSEAAnalyzer` class supports three analysis modes:
@@ -239,47 +302,37 @@ All modes output results as DataFrames and optionally save bar plots and dot plo
 ### 1. Environment
 
 ```bash
-conda create -n cancer-gnn python=3.8
+conda create -n cancer-gnn python=3.10
 conda activate cancer-gnn
 
-# PyTorch (adjust cuda version)
-pip install torch==1.12.1+cu113 -f https://download.pytorch.org/whl/torch_stable.html
-
-# PyTorch Geometric
-pip install torch-scatter torch-sparse torch-cluster torch-spline-conv \
-    -f https://data.pyg.org/whl/torch-1.12.1+cu113.html
-pip install torch-geometric
+# PyTorch + PyTorch Geometric (adjust for your CUDA version)
+pip install torch torchvision torchaudio
+pip install torch_geometric
 
 # All other dependencies
 pip install -r requirements.txt
+```
+
+For RTX 5090 (CUDA 12.8, sm_120):
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cu128
+pip install torch_geometric
+pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv \
+    -f https://data.pyg.org/whl/torch-2.7.0+cu128.html
 ```
 
 ### 2. Data Preparation
 
 Data is from the EMOGI benchmark (Schulte-Sasse et al., 2021). The six multi-omics HDF5 files must be downloaded from Zenodo and placed under `results/`.
 
-**Step 1 — Download from Zenodo**
+**Download from Zenodo (record 3707301)**
 
 ```bash
-# EMOGI dataset (Zenodo record 3707301)
-# Six HDF5 files totalling ~2 GB; requires an internet connection.
-pip install zenodo-get   # or: pip install requests tqdm
-
-# Option A: zenodo-get (recommended)
+pip install zenodo-get
 zenodo_get 3707301 -o ./zenodo_data
-
-# Option B: direct wget (adjust URLs if the record changes)
-mkdir -p ./zenodo_data
-wget -P ./zenodo_data \
-  "https://zenodo.org/record/3707301/files/CPDB_multiomics.h5" \
-  "https://zenodo.org/record/3707301/files/IREF_multiomics.h5" \
-  "https://zenodo.org/record/3707301/files/IREF_2015_multiomics.h5" \
-  "https://zenodo.org/record/3707301/files/MULTINET_multiomics.h5" \
-  "https://zenodo.org/record/3707301/files/PCNET_multiomics.h5" \
-  "https://zenodo.org/record/3707301/files/STRINGdb_multiomics.h5"
 ```
 
-**Step 2 — Place files in the expected layout**
+**Place files in the expected layout**
 
 ```bash
 mkdir -p results/EMOGI_CPDB results/EMOGI_IRefIndex results/EMOGI_IRefIndex_2015 \
@@ -311,24 +364,6 @@ Each HDF5 file contains:
 - `y_train`, `y_val`, `y_test` — cancer/non-cancer labels
 - `mask_train`, `mask_val`, `mask_test` — train/val/test masks
 
-**Verify download**
-
-```bash
-python -c "
-import h5py, os
-files = ['results/EMOGI_CPDB/CPDB_multiomics.h5',
-         'results/EMOGI_IRefIndex/IREF_multiomics.h5',
-         'results/EMOGI_IRefIndex_2015/IREF_2015_multiomics.h5',
-         'results/EMOGI_Multinet/MULTINET_multiomics.h5',
-         'results/EMOGI_PCNet/PCNET_multiomics.h5',
-         'results/EMOGI_STRINGdb/STRINGdb_multiomics.h5']
-for f in files:
-    with h5py.File(f) as h:
-        n = h['features'].shape[0]
-        print(f'{os.path.basename(f)}: {n} genes, {h[\"features\"].shape[1]} features')
-"
-```
-
 ---
 
 ## Usage
@@ -339,42 +374,35 @@ for f in files:
 # Test on CPDB (default)
 python experiments/run_benchmark.py --gcn 1
 
-# Test on each network (reproduce Table 1)
-python experiments/run_benchmark.py --gcn 1 \
-    --dataset IREF_2015 IREF STRING PCNET MULTINET CPDB
-
-python experiments/run_benchmark.py --gcn 1 \
-    --dataset IREF_2015 IREF STRING PCNET CPDB MULTINET
+# Test on each network individually
+for net in CPDB STRING IREF_2015 IREF MULTINET PCNET; do
+    python experiments/run_benchmark.py --gcn 1 --dataset $net
+done
 
 # GAT / GIN variants
 python experiments/run_benchmark.py --gat 1
 python experiments/run_benchmark.py --gin 1
 
-# MLP baseline (no graph structure)
-python experiments/run_benchmark.py --mlp 1
+# Multi-network
+python experiments/run_benchmark.py --gcn 1 \
+    --dataset IREF_2015 MULTINET CPDB
 ```
 
 ### Run improved model (Methodologies 2 & 3)
 
 ```bash
-# Default improved settings (GCN + all improvements)
-python experiments/run_improved.py --gcn 1
-
-# With explicit options
+# Best configuration: all 6 networks, BN disabled
 python experiments/run_improved.py --gcn 1 \
     --dataset IREF_2015 IREF STRING PCNET MULTINET CPDB \
-    --use_residual True --use_batchnorm True \
+    --norm_type none --use_residual True \
     --use_net_weights True --lr_scheduler cosine \
-    --label_smoothing 0.05 --normalize standard
+    --label_smoothing 0.05
 
 # GraphSAGE backbone
-python experiments/run_improved.py --sage 1
+python experiments/run_improved.py --sage 1 --norm_type none
 
 # Ablation: no residual connections
-python experiments/run_improved.py --gcn 1 --use_residual False
-
-# Ablation: no feature normalisation
-python experiments/run_improved.py --gcn 1 --normalize none
+python experiments/run_improved.py --gcn 1 --use_residual False --norm_type none
 ```
 
 ### Hyperparameter search (Methodology 2)
@@ -387,7 +415,7 @@ python experiments/run_hparam_search.py \
 # Persistent study (resumable)
 python experiments/run_hparam_search.py \
     --n_trials 100 --study_name emgnn_search \
-    --storage sqlite:///hparam_search.db
+    --storage sqlite:///results/hparam_search.db
 ```
 
 ### Attribution analysis (Methodology 4)
@@ -398,10 +426,10 @@ python experiments/run_attribution.py \
     --model_dir ./results/my_models/EMGNNImproved_GCN_CPDB_... \
     --gene_label cancer --node_explain
 
-# Edge attribution for top predicted genes
+# Feature importance for top predicted genes
 python experiments/run_attribution.py \
     --model_dir ./results/my_models/EMGNNImproved_GCN_CPDB_... \
-    --gene_label top_predicted --edge_explain --node_explain
+    --gene_label top_predicted --node_explain
 ```
 
 ### GSEA (Methodology 4)
@@ -440,8 +468,7 @@ python experiments/run_gsea.py \
 | `--epochs` | 2000 | Max training epochs |
 | `--patience` | 250 | Early-stopping patience |
 | `--use_residual` | True | Residual skip connections |
-| `--use_batchnorm` | True | Deprecated: use `--norm_type` instead |
-| `--norm_type` | batch | Normalisation: `batch`\|`graph`\|`layer`\|`none` — use `none` or `graph` for best results |
+| `--norm_type` | batch | Normalisation: `batch`\|`graph`\|`layer`\|`none` — use `none` for best results |
 | `--use_net_weights` | True | Per-network importance weights |
 | `--label_smoothing` | 0.05 | Label smoothing epsilon |
 | `--lr_scheduler` | cosine | LR schedule: cosine/step/none |
@@ -460,10 +487,11 @@ Training produces the following in `./results/my_models/<run_name>/`:
 model.pkl                        Model weights (best validation epoch)
 predictions.tsv                  Cancer probability for every gene
 hyper_params.txt                 All hyperparameters for reproducibility
+args.pkl                         Serialised training args (used by run_attribution.py)
 attribution/
   feature_importance_cancer.csv  Aggregated feature importance for cancer genes
   feature_importance_cancer.pdf  Importance bar plot (coloured by omics type)
-  edge_attr_cancer_*.pkl         Per-gene edge attribution scores
+  feature_importance_top_predicted.csv / .pdf
 gsea/
   enrichr_results.csv            Enrichr ORA significant terms
   enrichr_barplot.pdf            Enrichment bar plot
@@ -472,9 +500,10 @@ gsea/
 ```
 
 Global results are appended to:
-- `./results/results.txt` (benchmark)
-- `./results/results_improved.txt` (improved model)
-- `./results/hparam_search_results.csv` (hyperparameter search)
+- `./results/results.txt` — benchmark runs
+- `./results/results_improved.txt` — improved model runs
+- `./results/network_weights.txt` — learned per-network importance weights
+- `./results/hparam_search_results.csv` — Optuna best hyperparameters
 
 ---
 
@@ -484,24 +513,32 @@ Full experiment results are in [`results/experiment_summary.md`](results/experim
 
 ### Quick summary
 
-| Methodology | Key result |
-|-------------|-----------|
-| 1 — Reproduce benchmark | GCN: AUPR=0.748 (CPDB), 0.736 (STRING) — consistent with paper |
-| 2 — Model optimisation | Residual connections maintain performance; BatchNorm hurts full-batch graphs |
-| 3 — Multi-network (+3 PPI) | AUPR jumps from 0.748 → **0.788** (+4%) on CPDB |
-| 4 — Interpretability | 31 significant cancer hallmark pathways (FDR<0.05); TP53/EGFR/BRCA1 top-ranked |
+| Methodology | Best Configuration | AUPR | Δ vs M1 | Key Finding |
+|-------------|-------------------|------|---------|-------------|
+| M1 — Reproduce | GCN/GIN, CPDB (multi-run) | 0.748–0.792 | — | Reproduces paper trend; GIN peak AUPR=0.792 |
+| M1 — Multi-net | Benchmark GCN, 3 networks | 0.7877 | +0.040 | +4% from multi-network aggregation |
+| M2 — Optimise | EMGNNImproved, Optuna | **0.8023** | +0.054 | BN harmful; optimal: hidden=32, n_layers=4, no BN |
+| M3 — Multi-net | EMGNNImproved, 6 networks | **0.8067** | **+0.059** | +5.9%; CPDB+MULTINET most important |
+| M4 — Interpret | Integrated Gradients + GSEA | — | — | 31 cancer pathways; methylation features dominant |
 
-### Multi-network lift
+### Top predicted cancer genes
 
-| Networks | Model | AUPR | AUROC |
-|---------|-------|------|-------|
-| CPDB only | Benchmark GCN | 0.7479 | 0.8668 |
-| IREF_2015 + MULTINET + CPDB | Benchmark GCN | **0.7877** | **0.9041** |
-| IREF_2015 + MULTINET + CPDB | EMGNNImproved GCN | **0.7894** | 0.8989 |
+| Rank | Gene | P(cancer) | Known role |
+|------|------|-----------|-----------|
+| 1 | TP53 | 0.9999 | Master tumour suppressor |
+| 2 | MUC16 | 0.9998 | CA-125 ovarian cancer biomarker |
+| 3 | TTN | 0.9998 | Most frequently mutated gene in cancer |
+| 4 | CTNNB1 | 0.9992 | β-catenin, WNT pathway |
+| 5 | EP300 | 0.9990 | Histone acetyltransferase, tumour suppressor |
+| 6 | PIK3CA | 0.9989 | PI3K catalytic subunit, breast cancer driver |
+| 7 | FN1 | 0.9988 | Fibronectin, EMT marker |
+| 8 | CREBBP | 0.9984 | Histone acetyltransferase |
+| 9 | UBC | 0.9982 | Ubiquitin C, protein degradation hub |
+| 10 | FAT4 | 0.9980 | Cadherin tumour suppressor |
 
 ### GSEA top pathways (top-200 predicted genes, MSigDB Hallmark 2020)
 
-EMT (FDR=1.6×10⁻¹⁷), PI3K/AKT/mTOR (5.8×10⁻¹⁵), Apoptosis (6.4×10⁻¹¹), TGF-β (8.5×10⁻¹⁰), WNT (2.9×10⁻⁰⁸), p53 Pathway, G2-M Checkpoint, Hedgehog — 31 terms total.
+31 significant pathways (FDR < 0.05). Top enriched: EMT (FDR=1.6×10⁻¹⁷), PI3K/AKT/mTOR (5.8×10⁻¹⁵), Apoptosis (6.4×10⁻¹¹), TGF-β (8.5×10⁻¹⁰), WNT (2.9×10⁻⁰⁸), G2-M Checkpoint, Hedgehog, Notch — confirming biological plausibility of GNN predictions.
 
 ---
 

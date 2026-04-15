@@ -191,6 +191,13 @@ class EMGNNImproved(torch.nn.Module):
         )
         meta_x = self.meta_x.to(device)
 
+        # ── Captum path: IG passes x_all = [input_nodes | meta_nodes] ────
+        # Split so that subsequent steps only see input nodes in x,
+        # matching the same logic as the original benchmark EMGNN.
+        if captum and x.shape[0] > self.nb_nodes:
+            meta_x = x[self.nb_nodes:]   # use captum-perturbed meta features
+            x = x[:self.nb_nodes]        # keep only input-node portion
+
         # ── 1. Input projection ────────────────────────────────────────────
         x = self.leakyrelu(self.linear(x))
         meta_x_proj = self.leakyrelu(self.meta_linear(meta_x))
@@ -200,7 +207,7 @@ class EMGNNImproved(torch.nn.Module):
             # softmax-normalise weights so they sum to 1
             w = F.softmax(self.network_weights, dim=0)
             # data.batch[i] tells us which graph node i belongs to
-            node_w = w[data.batch]          # shape: (total_nodes,)
+            node_w = w[data.batch]          # shape: (n_input_nodes,)
             x = x * node_w.unsqueeze(1)    # broadcast over feature dim
 
         # ── 3. Graph-level message passing with residual + normalisation ──────
