@@ -489,21 +489,3 @@ Full experiment results are in [`results/experiment_summary.md`](results/experim
 | M3 — Multi-net | EMGNNImproved, all 6 networks | — | — | 🔲 In progress |
 | M4 — Interpret | Integrated Gradients + GSEA | — | — | 🔲 In progress |
 
----
-
-## Citation
-
-If you use this code, please cite the benchmark paper:
-
-```bibtex
-@article{chatzianastasis2023emgnn,
-  author  = {Chatzianastasis, Michail and Vazirgiannis, Michalis and Zhang, Zijun},
-  title   = {{Explainable Multilayer Graph Neural Network for Cancer Gene Prediction}},
-  journal = {Bioinformatics},
-  year    = {2023},
-  volume  = {39},
-  number  = {11},
-  pages   = {btad643},
-  doi     = {10.1093/bioinformatics/btad643}
-}
-```
