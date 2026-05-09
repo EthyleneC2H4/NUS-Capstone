@@ -20,8 +20,8 @@ This repository implements the full methodology pipeline for cancer gene predict
 |---|------|--------|
 | 1 | Reproduce benchmark (EMGNN) | ✅ `benchmark/` |
 | 2 | Optimise model (residual, norm options, LR scheduler, label smoothing, hparam search) | ✅ `src/models/emgnn_improved.py` |
-| 3 | Extend to multiple biological networks (learnable network-importance weights) | 🔲 `src/models/emgnn_improved.py` |
-| 4 | Enhance interpretability (feature attribution + GSEA) | 🔲 `src/explainability/` |
+| 3 | Extend to multiple biological networks (learnable network-importance weights) | ✅ `src/models/emgnn_improved.py` |
+| 4 | Enhance interpretability (feature attribution + GSEA) | ✅ `src/explainability/` |
 
 ---
 
@@ -213,13 +213,13 @@ lr_scheduler ∈ {none, cosine, step}
 | norm_type | none |
 | label_smoothing | 0.003 |
 | lr_scheduler | step |
-| **Best AUPR** | **0.8023** |
+| **Best AUPR (single seed)** | **0.8023** |
+
+> **Note:** Multi-seed validation (seeds 1–5) of this configuration yields mean AUPR = 0.742 ± 0.008, comparable to the M1 baseline (0.743). The Optuna result is seed-dependent. The BatchNorm finding from the controlled ablation remains valid.
 
 ---
 
-### Methodology 3 — Multi-Network Extension *(planned)*
-
-> **Status:** Implementation complete; evaluation in progress.
+### Methodology 3 — Multi-Network Extension
 
 #### Learnable per-network importance weights (`use_network_weights=True`)
 The original EMGNN treats all PPI networks equally. EMGNNImproved adds a learnable softmax-normalised scalar weight *w_k* per network:
@@ -229,7 +229,31 @@ h_i ← h_i * w_{k(i)}  # weight node i's embedding by its network's importance
 ```
 This allows the model to up-weight high-quality networks and down-weight noisy ones automatically during training.
 
-Multi-network training results and per-network importance weights will be reported here upon completion.
+**Multi-network results (GCN backbone)**
+
+| Model | Networks | AUPR | AUROC | Δ vs M1 baseline |
+|-------|---------|------|-------|----------------|
+| Benchmark GCN | CPDB only | 0.7479 | 0.8668 | — |
+| Benchmark GCN | IREF_2015 + MULTINET + CPDB | 0.7877 | 0.9041 | +0.040 |
+| Benchmark GCN | All 6 networks | 0.7987 | 0.9114 | +0.054 ← data effect only |
+| EMGNNImproved GCN | IREF_2015 + CPDB | 0.8018 | 0.9000 | +0.054 |
+| EMGNNImproved GCN | IREF_2015 + MULTINET + CPDB | 0.7942 | 0.9018 | +0.046 |
+| **EMGNNImproved GCN** | **All 6 networks** | **0.8067** | **0.9170** | **+0.059** |
+
+> **Gain decomposition:** Benchmark GCN 6-net vs EMGNNImproved 6-net differ by only +0.008 AUPR (+1%). The majority of the +5.9% total gain is from adding more networks (data), not architecture changes.
+
+**Learned per-network importance weights (6-network model, mean of 2 runs):**
+
+| Network | Weight |
+|---------|--------|
+| CPDB | 0.2097 |
+| MULTINET | 0.2005 |
+| IREF_2015 | 0.1660 |
+| STRING | 0.1659 |
+| PCNET | 0.1617 |
+| IREF | 0.0962 |
+
+CPDB and MULTINET are consistently most important; IREF contributes least.
 
 #### GraphSAGE backbone (`--sage`)
 A new backbone option (`SAGEConv`) is added alongside GCN/GAT/GIN. GraphSAGE uses sampling-based neighbourhood aggregation:
@@ -240,9 +264,7 @@ This is particularly effective when node degrees vary widely across PPI networks
 
 ---
 
-### Methodology 4 — Interpretability Enhancement *(planned)*
-
-> **Status:** Implementation complete; analysis in progress.
+### Methodology 4 — Interpretability Enhancement
 
 #### 4a. Improved attribution (`src/explainability/attribution.py`)
 The `AttributionAnalyzer` class provides a clean API over Captum's Integrated Gradients:
@@ -250,7 +272,22 @@ The `AttributionAnalyzer` class provides a clean API over Captum's Integrated Gr
 - **Aggregated importance** — mean/max importance across a set of genes (e.g. all cancer genes), producing a global feature importance ranking
 - **Edge attributions** — which meta-graph edges drive a given prediction (requires PyG ≤2.4)
 
-Feature importance results will be reported here upon completion.
+**Top feature importance (Integrated Gradients, cancer genes):**
+
+| Rank | Feature | Importance | Omics type |
+|------|---------|------------|-----------|
+| 1 | METH: LIHC | 0.908 | DNA methylation, liver cancer |
+| 2 | GE: BLCA | 0.805 | Gene expression, bladder cancer |
+| 3 | GE: BRCA | 0.778 | Gene expression, breast cancer |
+| 4 | METH: CESC | 0.698 | DNA methylation, cervical cancer |
+| 5 | METH: PRAD | 0.656 | DNA methylation, prostate cancer |
+| 6 | GE: LIHC | 0.653 | Gene expression, liver cancer |
+| 7 | METH: LUAD | 0.641 | DNA methylation, lung adenocarcinoma |
+| 8 | MF: KIRP | 0.561 | Mutation frequency, kidney papillary |
+| 9 | MF: BLCA | 0.549 | Mutation frequency, bladder cancer |
+| 10 | GE: LUSC | 0.527 | Gene expression, lung squamous cell |
+
+Methylation (METH) and gene expression (GE) features dominate, highlighting the role of epigenetic alterations and transcriptomic dysregulation as primary cancer signals.
 
 #### 4b. Gene Set Enrichment Analysis (`src/explainability/gsea.py`)
 The `GSEAAnalyzer` class supports three analysis modes:
@@ -481,11 +518,50 @@ Full experiment results are in [`results/experiment_summary.md`](results/experim
 
 ### Quick summary
 
-| Methodology | Best Configuration | AUPR | Δ vs M1 | Status |
-|-------------|-------------------|------|---------|--------|
-| M1 — Reproduce | GCN/GIN, CPDB (multi-run) | 0.748–0.792 | — | ✅ Complete |
-| M1 — Multi-net | Benchmark GCN, 3 networks | 0.7877 | +0.040 | ✅ Complete |
-| M2 — Optimise | EMGNNImproved, Optuna | **0.8023** | +0.054 | ✅ Complete |
-| M3 — Multi-net | EMGNNImproved, all 6 networks | — | — | 🔲 In progress |
-| M4 — Interpret | Integrated Gradients + GSEA | — | — | 🔲 In progress |
+| Methodology | Best Configuration | AUPR | Δ vs M1 | Key Finding |
+|-------------|-------------------|------|---------|-------------|
+| M1 — Reproduce | GCN/GIN, CPDB (multi-run) | 0.748–0.792 | — | Reproduces paper trend; GIN peak AUPR=0.792 |
+| M1 — Multi-net | Benchmark GCN, 3 networks | 0.7877 | +0.040 | +4% from multi-network aggregation |
+| M2 — Ablation | EMGNNImproved, no BN | 0.754 | — | BatchNorm harmful (−4.2% AUPR); controlled result |
+| M2 — Optuna | hidden=32, n_layers=4, no BN | **0.8023** (seed-dep.) | — | Multi-seed mean=0.742±0.008, not robust |
+| G2 — Control | Benchmark GCN, all 6 networks | **0.7987** | +0.054 | Data effect only; architecture adds only +0.008 |
+| M3 — Multi-net | EMGNNImproved, 6 networks | **0.8067** | **+0.059** | Mostly data gain; CPDB+MULTINET most important |
+| M4 — Interpret | IG + GSEA on 6-net model | — | — | 28 cancer pathways; EMT FDR=1.6×10⁻³³; methylation dominant |
 
+### Top predicted cancer genes
+
+| Rank | Gene | P(cancer) | Known role |
+|------|------|-----------|-----------|
+| 1 | TP53 | 0.9999 | Master tumour suppressor |
+| 2 | MUC16 | 0.9998 | CA-125 ovarian cancer biomarker |
+| 3 | TTN | 0.9998 | Most frequently mutated gene in cancer |
+| 4 | CTNNB1 | 0.9992 | β-catenin, WNT pathway |
+| 5 | EP300 | 0.9990 | Histone acetyltransferase, tumour suppressor |
+| 6 | PIK3CA | 0.9989 | PI3K catalytic subunit, breast cancer driver |
+| 7 | FN1 | 0.9988 | Fibronectin, EMT marker |
+| 8 | CREBBP | 0.9984 | Histone acetyltransferase |
+| 9 | UBC | 0.9982 | Ubiquitin C, protein degradation hub |
+| 10 | FAT4 | 0.9980 | Cadherin tumour suppressor |
+
+### GSEA top pathways (top-200 predicted genes, MSigDB Hallmark 2020, 6-network model)
+
+28 significant pathways (FDR < 0.05). Top enriched: EMT (FDR=1.6×10⁻³³, 35/200 genes), Apical Junction (1.0×10⁻¹⁵), UV Response (5.6×10⁻¹⁵), Coagulation (4.2×10⁻¹⁴), PI3K/AKT/mTOR (6.2×10⁻¹⁰), TGF-β (3.0×10⁻⁹), WNT (1.8×10⁻⁷) — confirming biological plausibility of GNN predictions on the best-performing model.
+
+---
+
+## Citation
+
+If you use this code, please cite the benchmark paper:
+
+```bibtex
+@article{chatzianastasis2023emgnn,
+  author  = {Chatzianastasis, Michail and Vazirgiannis, Michalis and Zhang, Zijun},
+  title   = {{Explainable Multilayer Graph Neural Network for Cancer Gene Prediction}},
+  journal = {Bioinformatics},
+  year    = {2023},
+  volume  = {39},
+  number  = {11},
+  pages   = {btad643},
+  doi     = {10.1093/bioinformatics/btad643}
+}
+```
