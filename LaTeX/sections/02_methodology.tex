@@ -120,6 +120,102 @@ pre-ranked GSEA~\cite{gsea2005} uses the continuous prediction scores to rank al
 and computes normalised enrichment scores (NES). Statistical significance is set at
 FDR~$<$~0.05.
 
+\subsection{Advanced GNN Techniques (Methodology 5)}
+\label{sec:m5}
+
+Building on the multi-network EMGNNImproved framework, we implement eleven advanced
+techniques addressing class imbalance, structural regularisation, self-supervised
+pretraining, long-range dependencies, cross-network fusion, pathway-level modelling,
+anomaly-aware learning, and model interpretability.
+
+\subsubsection{Focal Loss for Class Imbalance}
+The cancer gene prediction task exhibits extreme class imbalance ($\sim$700 positives
+vs.\ $\sim$20{,}000 negatives). Standard NLL loss treats all correctly classified samples
+equally, under-weighting hard positives. We implement Focal Loss~\cite{focal2017}:
+\begin{equation}
+  \text{FL}(p_t) = -\alpha_t (1 - p_t)^{\gamma} \log p_t,
+  \label{eq:focal}
+\end{equation}
+where $\gamma$ modulates the rate at which easy negatives are down-weighted and
+$\alpha_t$ sets the positive-class weight. With $\gamma = 2$ and $\alpha = 0.75$,
+easily classified non-cancer genes receive negligible loss contribution.
+
+\subsubsection{DropEdge Regularisation}
+To prevent over-reliance on specific PPI edges and reduce over-smoothing in deeper
+architectures, we apply DropEdge~\cite{dropedge2020}: at each training forward pass, a
+fraction $p$ of edges is randomly removed from the adjacency matrix:
+$\tilde{\mathbf{A}} = \mathbf{A} \odot \mathbf{M}$, where $\mathbf{M}$ is a random
+binary mask with $P(M_{ij} = 0) = p$. This acts as a data augmentation on graph
+structure.
+
+\subsubsection{Heterophily-Aware Gated Filtering}
+PPI networks exhibit low homophily: cancer genes' neighbours are predominantly non-cancer
+genes. Standard GCN smoothing dilutes the discriminative signal. We introduce a gated
+high/low-pass separation module after each GNN layer:
+\begin{equation}
+  \mathbf{g} = \sigma(\mathbf{W}[\mathbf{x}_{\text{low}} \| \mathbf{x}_{\text{high}}]),
+  \quad \mathbf{x}_{\text{out}} = \mathbf{g} \odot \mathbf{x}_{\text{low}} +
+  (1 - \mathbf{g}) \odot \mathbf{x}_{\text{high}},
+  \label{eq:hlpass}
+\end{equation}
+where $\mathbf{x}_{\text{low}}$ is the GCN output (neighbourhood average) and
+$\mathbf{x}_{\text{high}} = \mathbf{x}_{\text{orig}} - \mathbf{x}_{\text{low}}$ captures
+self-vs-neighbourhood deviation. The learned gate $\mathbf{g}$ allows the model to
+adaptively mix smooth and differential signals per node.
+
+\subsubsection{GraphMAE Self-Supervised Pretraining}
+Inspired by masked autoencoders~\cite{graphmae2022}, we add an optional two-stage training
+pipeline. In Stage~1, a GraphMAE encoder--decoder pair is trained to reconstruct randomly
+masked node features via scaled cosine error. In Stage~2, the pretrained encoder weights
+are transferred to the EMGNNImproved GNN layers for supervised fine-tuning, providing
+better initialisation from unlabelled structural information.
+
+\subsubsection{GPS Graph Transformer for Meta-Graph}
+The meta-graph aggregates signals from $\sim$22{,}000 meta-nodes across all PPI
+networks. Standard GCN on this graph is limited to local neighbourhoods. We optionally
+replace the meta-graph GNN with a GPS layer~\cite{gps2022} (Graph Transformer), combining
+local MPNN message passing with global multi-head self-attention, enabling long-range
+cross-gene dependencies.
+
+\subsubsection{Cross-Network Attention Fusion}
+The baseline per-network weighting uses a single scalar per PPI network shared across all
+genes. We replace this with a gene-level cross-network attention mechanism: for each input
+node, an attention score is computed conditioned on both its GNN embedding and its network
+identity (via a learned network embedding). Scores are normalised within each meta-node
+group using scatter-softmax, allowing different genes to attend to different networks.
+
+\subsubsection{GO/Pathway Hypergraph Integration}
+We implement a Hypergraph Neural Network (HyperGNN)~\cite{hgnn2019} encoder that operates
+on gene set annotations (GO terms, KEGG pathways) from MSigDB GMT files. The hypergraph
+represents each gene set as a hyperedge connecting all member genes. Two-stage message
+passing (node~$\to$~hyperedge~$\to$~node) produces pathway-aware embeddings that are fused
+with PPI embeddings via a learned linear projection at the meta-graph level.
+
+\subsubsection{HIPGNN-Inspired Anomaly Detection}
+We add an auxiliary anomaly detection head inspired by HIPGNN~\cite{hipgnn2025}, combining:
+(i)~a spectral view analysing node energy distributions across Laplacian eigenvectors, and
+(ii)~a spatial view measuring self-vs-neighbourhood feature heterogeneity. The auxiliary
+loss is weighted by $\lambda$ and trained jointly with the classification loss in a
+multi-task fashion.
+
+\subsubsection{Random-Walk Positional Encoding}
+Standard GNNs lack awareness of global graph position. We concatenate Random-Walk
+Positional Encodings~\cite{rwpe2020} of dimension $d_{\text{PE}}$ to each node's
+feature vector, encoding the probability of landing at each node from $d_{\text{PE}}$
+steps of a random walk.
+
+\subsubsection{PINNACLE Pretrained Protein Embeddings}
+We support concatenation of PINNACLE~\cite{pinnacle2024} pretrained 128-dimensional
+protein embeddings to meta-node features, adding structure/function priors learned from
+multi-tissue PPI networks. The \texttt{meta\_linear} projection layer automatically
+adapts to the augmented feature dimension.
+
+\subsubsection{GNNExplainer for Edge-Level Interpretability}
+Complementing the feature-level Integrated Gradients analysis, we implement
+GNNExplainer~\cite{gnnexplainer2019} to produce edge-level explanations: for each
+top-predicted cancer gene, the explainer identifies which PPI edges are most important
+for the prediction.
+
 \subsection{Experimental Setup}
 
 All experiments are run on an NVIDIA RTX~5090 GPU (CUDA~12.8, sm\_120) with PyTorch~2.7

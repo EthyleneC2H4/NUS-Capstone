@@ -110,6 +110,70 @@ Our improved model supports \texttt{norm\_type} $\in$ \{\texttt{batch}, \texttt{
 in Section~\ref{sec:ablation} demonstrate the cost of \texttt{batch} normalisation; direct
 comparison of the remaining options is future work.
 
+\subsection{Focal Loss for Class Imbalance}
+
+For binary classification with extreme imbalance, Focal Loss~\cite{focal2017} modifies the
+standard cross-entropy by adding a modulating factor $(1-p_t)^\gamma$:
+\begin{equation}
+  \text{FL}(p_t) = -\alpha_t\,(1-p_t)^\gamma \log(p_t),
+  \label{eq:focal_theory}
+\end{equation}
+where $p_t$ is the model's estimated probability for the true class, $\gamma \ge 0$
+controls the rate at which easy examples are down-weighted, and $\alpha_t$ compensates for
+class frequency. When $\gamma=0$, this reduces to weighted cross-entropy; when $\gamma=2$,
+an example classified with $p_t=0.9$ receives $100\times$ less loss contribution than
+$p_t=0.5$. In the cancer gene task where $\sim$97\% of labels are negative, Focal Loss
+ensures that the sparse positive signal is not overwhelmed by easy negative nodes.
+
+\subsection{Heterophily-Aware Graph Filtering}
+
+Standard GCN performs low-pass filtering: neighbourhood aggregation smooths node
+representations. In PPI networks where cancer genes' neighbours are predominantly
+non-cancer genes (low homophily), this smoothing dilutes the cancer signal. We decompose
+the GCN output into low-pass and high-pass components and learn a gated mixture:
+\begin{equation}
+  \mathbf{x}_{\text{high}} = \mathbf{x} - \mathbf{x}_{\text{GCN}}, \quad
+  \mathbf{g} = \sigma\!\left(\mathbf{W}[\mathbf{x}_{\text{GCN}} \| \mathbf{x}_{\text{high}}]\right),
+  \label{eq:hl_theory}
+\end{equation}
+\begin{equation}
+  \mathbf{x}_{\text{out}} = \mathbf{g} \odot \mathbf{x}_{\text{GCN}} +
+  (1 - \mathbf{g}) \odot \mathbf{x}_{\text{high}},
+\end{equation}
+where $\sigma$ is the sigmoid function and $\mathbf{g} \in [0,1]^d$ is a per-feature gate.
+This allows cancer genes---which deviate from their neighbours---to preserve their
+high-frequency (differential) signal while normal genes benefit from neighbourhood smoothing.
+
+\subsection{Cross-Network Attention}
+
+The scalar per-network weighting (Eq.~\ref{eq:network_weights}) assigns a single
+importance weight $w_k$ to all nodes in network $k$. Cross-network attention generalises
+this by computing a gene-specific attention score conditioned on both the node embedding
+and a learned network embedding $\mathbf{e}_k$:
+\begin{equation}
+  s_i = \mathbf{v}^\top \text{LeakyReLU}\!\left(
+    \mathbf{W}_a [\mathbf{h}_i \| \mathbf{e}_{k(i)}]\right),
+  \quad
+  \alpha_i = \frac{\exp(s_i)}{\sum_{j \in \mathcal{M}(i)} \exp(s_j)},
+  \label{eq:crossnet_attn}
+\end{equation}
+where $\mathcal{M}(i)$ denotes all input-node copies of the same gene (across networks),
+and the normalisation is performed within each meta-node group via scatter-softmax.
+
+\subsection{Hypergraph Neural Network}
+
+A hypergraph represents gene sets as hyperedges: each hyperedge $e_j$ connects all genes
+belonging to gene set $j$. The hypergraph convolution~\cite{hgnn2019} performs two-stage
+message passing through the incidence matrix $\mathbf{H} \in \{0,1\}^{N \times E}$:
+\begin{equation}
+  \mathbf{X}' = \mathbf{D}_v^{-1/2}\,\mathbf{H}\,\mathbf{D}_e^{-1}\,\mathbf{H}^\top\,
+  \mathbf{D}_v^{-1/2}\,\mathbf{X}\,\boldsymbol{\Theta},
+  \label{eq:hypergnn}
+\end{equation}
+where $\mathbf{D}_v$ and $\mathbf{D}_e$ are node- and hyperedge-degree diagonal matrices.
+This first aggregates node features to hyperedges (pathways), then distributes pathway-level
+representations back to nodes, enabling biologically informed long-range communication.
+
 \subsection{Integrated Gradients for Interpretability}
 
 Integrated Gradients~\cite{ig2017} satisfies the \emph{completeness} axiom: the sum of

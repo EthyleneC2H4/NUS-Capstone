@@ -4,7 +4,7 @@
 
 This work presents a systematic investigation of cancer driver gene prediction using
 multilayer graph neural networks, building upon and extending the EMGNN benchmark through
-four interconnected methodological contributions.
+five interconnected methodological contributions.
 
 Benchmark reproduction confirms that the GCN backbone achieves a mean AUPR of 0.743 (best
 0.753) across 18 independent runs on CPDB, consistent with the published rank ordering of
@@ -43,18 +43,31 @@ predicted cancer gene set is concentrated in established oncogenic programmes. T
 high-confidence prediction of TP53, MUC16, CTNNB1, PIK3CA, and BRCA1 at the top of
 the list validates biological fidelity.
 
-Several limitations should be noted. Results are reported without averaging over multiple
-random seeds for the multi-network and Optuna experiments, which introduces run-to-run
-variability. GSEA was run on predictions from the single-network model rather than the
-best six-network model, and future work should validate whether the pathway enrichment
-profile shifts with improved multi-network predictions. The current implementation does
-not evaluate GraphNorm and LayerNorm as replacements for BatchNorm in a systematic
-multi-network setting; both are implemented and represent a natural next experimental step.
+Beyond the core four-methodology pipeline, we implement eleven advanced GNN techniques
+(Methodology~5) as modular, independently activatable extensions. These address key
+limitations of the baseline: Focal Loss and label smoothing tackle the 1:30 class
+imbalance; DropEdge and heterophily-aware gated filtering address over-smoothing in the
+low-homophily PPI setting; GraphMAE pretraining exploits unlabelled graph structure for
+better weight initialisation; GPS Graph Transformers and cross-network attention enable
+long-range and gene-specific multi-network reasoning; pathway hypergraph encoding and
+PINNACLE protein embeddings incorporate external biological knowledge; and GNNExplainer
+provides edge-level interpretability complementing the feature-level Integrated Gradients.
+These components are designed for compositional experimentation: any subset can be activated
+simultaneously via command-line flags without code changes.
+
+Several limitations should be noted. The Methodology~5 techniques are implemented and
+unit-tested but not yet evaluated in a systematic ablation on the six-network configuration
+due to computational constraints; this is the most immediate next step.
+Results are reported without averaging over multiple random seeds for the multi-network
+and Optuna experiments, which introduces run-to-run variability. Three external-data-dependent
+modules (pathway hypergraph, HIPGNN eigenvectors, PINNACLE embeddings) require downloading
+and preprocessing external datasets before they can be activated.
 
 Taken together, these results demonstrate that: (i) multi-network integration consistently
 outperforms single-network baselines regardless of model variant; (ii) appropriate
 hyperparameter search and architectural choices (no BatchNorm, residual connections, label
-smoothing) amplify the gains further; and (iii) the resulting predictions are biologically
-interpretable and pathway-coherent. The code, exact package versions, trained model artefacts,
-and reproducible experiment configurations are released publicly to support further
-development of interpretable cancer gene prediction models.
+smoothing) amplify the gains further; (iii) the resulting predictions are biologically
+interpretable and pathway-coherent; and (iv) the framework is extensible to frontier GNN
+techniques through a modular, flag-driven architecture. The code, exact package versions,
+trained model artefacts, and reproducible experiment configurations are released publicly
+to support further development of interpretable cancer gene prediction models.

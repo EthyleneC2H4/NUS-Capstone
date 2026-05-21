@@ -41,6 +41,15 @@ normalisation strategies but were not evaluated experimentally against the no-no
 baseline. The ablation study only contrasts BatchNorm1d with no normalisation; a full
 three-way comparison is deferred to future work.
 
+\textbf{Methodology~5 evaluation pending.} The eleven advanced techniques (Focal Loss,
+DropEdge, heterophily-aware gating, GraphMAE, GPS, cross-network attention, hypergraph,
+HIPGNN, positional encoding, PINNACLE, GNNExplainer) are fully implemented and
+syntactically verified but have not been evaluated in a systematic ablation study on the
+six-network configuration. Individual and combined performance gains remain to be
+quantified. Three modules require external datasets (MSigDB GMT files, Laplacian
+eigenvectors, PINNACLE embeddings from HuggingFace) that were not available during
+this study.
+
 \subsection*{Acknowledgements}
 
 The author thanks the original EMGNN authors (Chatzianastasis et al.) and the EMOGI

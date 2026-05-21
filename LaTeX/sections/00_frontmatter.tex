@@ -51,7 +51,7 @@ Identifying cancer driver genes from the vast landscape of somatic mutations is 
 challenge in computational oncology. We build upon and extend the Explainable Multilayer
 Graph Neural Network (EMGNN), which fuses multi-omics node features with protein--protein
 interaction (PPI) network topology via a two-stage graph neural network architecture.
-Our work pursues four objectives. First, we reproduce the benchmark, achieving a mean
+Our work pursues five objectives. First, we reproduce the benchmark, achieving a mean
 AUPR~=~0.743 (best~=~0.753) on the CPDB network (GCN backbone, 18 runs), confirming the
 published trend. Second, we perform systematic ablation of four architectural
 improvements---residual skip connections, Batch Normalisation, label smoothing
@@ -68,15 +68,22 @@ attribution---revealing that DNA methylation and gene expression features domina
 cancer signal---and Gene Set Enrichment Analysis via Enrichr, recovering 31 significant
 Hallmark pathways (FDR~$<$~0.05); the highest-ranked terms include Epithelial Mesenchymal
 Transition (FDR~=~$1.6\times10^{-17}$), PI3K/AKT/mTOR Signalling
-(FDR~=~$5.8\times10^{-15}$), and Apoptosis (FDR~=~$6.4\times10^{-11}$). The top predicted
+(FDR~=~$5.8\times10^{-15}$), and Apoptosis (FDR~=~$6.4\times10^{-11}$). Fifth, we
+implement eleven advanced GNN techniques---including Focal Loss for class imbalance,
+heterophily-aware gated filtering, GraphMAE self-supervised pretraining, GPS Graph
+Transformers for long-range meta-graph dependencies, cross-network attention fusion,
+pathway hypergraph integration, and GNNExplainer for edge-level interpretability---as
+modular, independently activatable components within the framework. The top predicted
 genes---TP53, MUC16, CTNNB1, PIK3CA---are all well-established oncogenes or tumour
 suppressors, validating the model's biological fidelity. These findings demonstrate that
-multi-network integration, systematic hyperparameter optimisation, and interpretability
-analysis are complementary strategies for building robust, trustworthy cancer gene predictors.
+multi-network integration, systematic hyperparameter optimisation, advanced GNN
+architectures, and interpretability analysis are complementary strategies for building
+robust, trustworthy cancer gene predictors.
 
 \vspace{0.5em}
 \noindent\textbf{Keywords:} cancer driver gene prediction, graph neural network,
 protein--protein interaction network, multi-omics integration, gene set enrichment analysis,
-model interpretability, hyperparameter optimisation
+model interpretability, hyperparameter optimisation, focal loss, graph transformer,
+self-supervised pretraining
 
 \vspace{1em}

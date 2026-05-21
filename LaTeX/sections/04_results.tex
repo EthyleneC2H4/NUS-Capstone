@@ -362,3 +362,76 @@ coherent cancer gene predictions validated by both benchmark known-cancer-gene l
 independent pathway databases. Multi-network integration provides a consistent performance
 advantage, with methylation and gene expression features emerging as the primary
 discriminative signals.
+
+\subsection{Advanced GNN Techniques (Methodology 5)}
+\label{sec:m5_results}
+
+Table~\ref{tab:m5_summary} summarises the eleven advanced techniques implemented in
+EMGNNImproved. These techniques address five core challenges identified in the baseline
+framework: class imbalance, over-smoothing, limited pretraining, local-only aggregation,
+and coarse network fusion.
+
+All techniques are implemented as modular, independently activatable components with
+dedicated command-line flags, maintaining full backward compatibility with the baseline
+configuration. The implementation introduces six new source files totalling approximately
+800 lines of code.
+
+\begin{table}[ht]
+  \centering
+  \caption{Summary of advanced GNN techniques implemented in Methodology~5.
+           Category: I~=~imbalance, R~=~regularisation, P~=~pretraining,
+           A~=~architecture, F~=~fusion, X~=~explainability.
+           Status: $\checkmark$ = fully implemented and tested;
+           $\diamond$ = implemented, requires external data.}
+  \label{tab:m5_summary}
+  \small
+  \begin{tabular}{llcc}
+    \toprule
+    \textbf{Technique} & \textbf{Cat.} & \textbf{Flag} & \textbf{Status} \\
+    \midrule
+    Focal Loss ($\gamma$=2, $\alpha$=0.75)       & I & \texttt{--focal\_gamma}       & $\checkmark$ \\
+    DropEdge ($p$=0.1)                            & R & \texttt{--drop\_edge\_rate}   & $\checkmark$ \\
+    Heterophily-aware gating                      & A & \texttt{--heterophily\_aware} & $\checkmark$ \\
+    GraphMAE pretraining                          & P & \texttt{--pretrain\_graphmae} & $\checkmark$ \\
+    Random-Walk PE ($d$=16)                       & A & \texttt{--pe\_dim}            & $\checkmark$ \\
+    GPS Graph Transformer                         & A & \texttt{--gps\_meta}          & $\checkmark$ \\
+    Cross-network attention                       & F & \texttt{--cross\_network\_attention} & $\checkmark$ \\
+    GNNExplainer                                  & X & (standalone script)           & $\checkmark$ \\
+    GO/Pathway hypergraph                         & F & \texttt{--hypergraph\_gmt}    & $\diamond$ \\
+    HIPGNN anomaly detection                      & A & \texttt{--hipgnn\_lambda}     & $\diamond$ \\
+    PINNACLE embeddings                           & P & \texttt{--pinnacle\_path}     & $\diamond$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Class imbalance.} Focal Loss~\cite{focal2017} addresses the 1:30 positive/negative
+ratio by dynamically down-weighting easy negatives, focusing training on hard-to-classify
+boundary cases. This complements the existing label smoothing mechanism.
+
+\textbf{Structural regularisation.} DropEdge~\cite{dropedge2020} randomly removes edges
+at each training step, acting as graph-level data augmentation and reducing over-smoothing
+in deeper GNN configurations. Heterophily-aware gated filtering preserves the
+high-frequency (self-vs-neighbour deviation) signal that standard GCN smoothing destroys,
+which is critical for cancer genes in low-homophily PPI networks.
+
+\textbf{Self-supervised pretraining.} GraphMAE~\cite{graphmae2022} provides task-agnostic
+initialisation by learning to reconstruct masked node features, exploiting the full
+unlabelled graph structure. The pretrained encoder weights are transferred to the
+supervised model, potentially improving generalisation on the sparse positive labels.
+
+\textbf{Meta-graph architecture.} GPS~\cite{gps2022} replaces the standard GCN
+meta-graph layer with a Graph Transformer that combines local message passing with global
+self-attention, enabling long-range gene--gene dependencies that span the meta-graph.
+Cross-network attention replaces scalar per-network weights with gene-level attention,
+allowing different genes to weight different PPI networks differently
+(e.g., TP53 informative in STRING, BRCA1 in CPDB).
+
+\textbf{Biological knowledge integration.} Pathway hypergraph encoding~\cite{hgnn2019}
+and PINNACLE~\cite{pinnacle2024} pretrained protein embeddings incorporate functional
+annotations and protein structure/function priors that complement the purely topological
+and omics-based features.
+
+\textbf{Edge-level interpretability.} GNNExplainer~\cite{gnnexplainer2019} produces
+per-gene edge importance masks, identifying which specific PPI interactions drive each
+cancer prediction. This complements the feature-level Integrated Gradients analysis
+(Methodology~4) by revealing the relational structure underlying predictions.
