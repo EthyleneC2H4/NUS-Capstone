@@ -26,6 +26,29 @@ from torch_geometric.utils import add_self_loops
 # Helper
 # ──────────────────────────────────────────────────────────────────────────────
 
+class FocalLoss(nn.Module):
+    """
+    Focal Loss (Lin et al., ICCV 2017) for class-imbalanced node classification.
+
+    Works with log_softmax output (same interface as F.nll_loss).
+    gamma=0 reduces to standard cross-entropy; gamma=2 is recommended.
+    alpha sets the positive-class weight (0.75 means 3x weight for positives).
+    """
+
+    def __init__(self, gamma: float = 2.0, alpha: float = 0.75):
+        super().__init__()
+        self.gamma = gamma
+        self.register_buffer('alpha', torch.tensor([1 - alpha, alpha]))
+
+    def forward(self, log_probs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        probs = log_probs.exp()
+        pt = probs.gather(1, targets.unsqueeze(1)).squeeze(1)
+        alpha_t = self.alpha.to(log_probs.device)[targets]
+        focal_weight = alpha_t * (1 - pt) ** self.gamma
+        nll = -log_probs.gather(1, targets.unsqueeze(1)).squeeze(1)
+        return (focal_weight * nll).mean()
+
+
 def _build_conv(args, in_channels: int, out_channels: int) -> nn.Module:
     """Instantiate a single graph-convolution layer based on CLI args."""
     if getattr(args, 'gcn', False):
@@ -109,6 +132,13 @@ class EMGNNImproved(torch.nn.Module):
         self.use_network_weights = use_network_weights
         self.label_smoothing = label_smoothing
         self.n_layers = n_layers
+
+        # ── Focal loss for class imbalance ─────────────────────────────────
+        focal_gamma = getattr(args, 'focal_gamma', 0.0)
+        focal_alpha = getattr(args, 'focal_alpha', 0.75)
+        self.use_focal = focal_gamma > 0
+        if self.use_focal:
+            self.focal_loss_fn = FocalLoss(gamma=focal_gamma, alpha=focal_alpha)
 
         alpha = getattr(args, 'alpha', 0.2)
         self.dropout = getattr(args, 'dropout', 0.5)
@@ -240,17 +270,20 @@ class EMGNNImproved(torch.nn.Module):
 
     def loss(self, output, labels):
         """
-        Negative log-likelihood loss with optional label smoothing.
+        Classification loss with optional focal weighting and label smoothing.
 
-        Label smoothing replaces hard 0/1 targets with (eps/K, 1-eps+eps/K)
-        which prevents the model from becoming over-confident and often
-        improves calibration and generalisation.
+        When focal_gamma > 0, uses Focal Loss (Lin et al. 2017) to handle
+        class imbalance by down-weighting easy negatives.
+        Label smoothing blends the primary loss with a uniform-distribution term.
         """
+        # Choose primary loss: focal or standard NLL
+        if self.use_focal:
+            primary = self.focal_loss_fn(output, labels)
+        else:
+            primary = F.nll_loss(output, labels)
+
         if self.label_smoothing > 0.0:
-            # output is already log_softmax (from forward)
-            # Simple label-smoothing: blend NLL loss with uniform distribution loss
             eps = self.label_smoothing
-            nll = F.nll_loss(output, labels)
-            uniform = -output.mean()   # mean over all classes and samples
-            return (1.0 - eps) * nll + eps * uniform
-        return F.nll_loss(output, labels)
+            uniform = -output.mean()
+            return (1.0 - eps) * primary + eps * uniform
+        return primary

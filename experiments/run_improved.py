@@ -74,6 +74,10 @@ def parse_args():
     p.add_argument('--use_net_weights', default=True,
                    type=lambda x: x in ('1','True','true'))
     p.add_argument('--label_smoothing', type=float, default=0.05)
+    p.add_argument('--focal_gamma',    type=float, default=0.0,
+                   help='Focal loss gamma (0=off, 2.0 recommended for imbalanced data)')
+    p.add_argument('--focal_alpha',    type=float, default=0.75,
+                   help='Focal loss positive-class weight (0.75 = 3x weight for positives)')
 
     # Training hyperparameters
     p.add_argument('--lr',           type=float, default=0.005)
