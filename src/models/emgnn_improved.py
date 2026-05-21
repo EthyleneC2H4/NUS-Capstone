@@ -18,7 +18,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import GCNConv, GATConv, GINConv, SAGEConv, GraphNorm
+from torch_geometric.nn import GCNConv, GATConv, GINConv, SAGEConv, GraphNorm, GPSConv
 from torch_geometric.utils import add_self_loops, dropout_edge
 
 
@@ -206,7 +206,19 @@ class EMGNNImproved(torch.nn.Module):
             self.meta_bn = None
 
         # ── Meta-graph GNN ─────────────────────────────────────────────────
-        self.meta_gnn = _build_conv(args, hidden_channels, hidden_channels)
+        if getattr(args, 'gps_meta', False):
+            # GPS = local MPNN + global multi-head attention
+            # Only on meta-graph (~22K nodes), not per-network (~90K total)
+            local_conv = GCNConv(hidden_channels, hidden_channels)
+            self.meta_gnn = GPSConv(
+                channels=hidden_channels,
+                conv=local_conv,
+                heads=getattr(args, 'gps_heads', 4),
+                attn_type='multihead',
+                attn_dropout=0.1,
+            )
+        else:
+            self.meta_gnn = _build_conv(args, hidden_channels, hidden_channels)
 
         # ── Classifier ────────────────────────────────────────────────────
         self.classifier = nn.Linear(hidden_channels, nclass)

@@ -74,6 +74,11 @@ def parse_args():
     p.add_argument('--use_net_weights', default=True,
                    type=lambda x: x in ('1','True','true'))
     p.add_argument('--label_smoothing', type=float, default=0.05)
+    p.add_argument('--gps_meta', default=False,
+                   type=lambda x: x in ('1','True','true'),
+                   help='Use GPS (Graph Transformer) for meta-graph layer')
+    p.add_argument('--gps_heads', type=int, default=4,
+                   help='Number of attention heads in GPS meta-graph layer')
     p.add_argument('--heterophily_aware', default=False,
                    type=lambda x: x in ('1','True','true'),
                    help='Enable gated high/low-pass separation for heterophilic PPI graphs')
