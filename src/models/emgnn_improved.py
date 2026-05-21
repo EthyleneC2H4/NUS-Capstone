@@ -224,7 +224,8 @@ class EMGNNImproved(torch.nn.Module):
 
         # ── Input projections ──────────────────────────────────────────────
         self.linear = nn.Linear(nfeat, hidden_channels)
-        self.meta_linear = nn.Linear(nfeat, hidden_channels)
+        meta_feat_dim = meta_x.shape[1] if meta_x is not None else nfeat
+        self.meta_linear = nn.Linear(meta_feat_dim, hidden_channels)
 
         # ── Per-layer GNN stack ────────────────────────────────────────────
         self.conv = nn.ModuleList([

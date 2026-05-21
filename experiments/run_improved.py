@@ -120,6 +120,8 @@ def parse_args():
                    help='HIPGNN auxiliary anomaly loss weight (0=off, 0.1 recommended)')
     p.add_argument('--hipgnn_eigvecs', type=int, default=32,
                    help='Number of Laplacian eigenvectors for HIPGNN spectral view')
+    p.add_argument('--pinnacle_path', type=str, default=None,
+                   help='Path to PINNACLE .npz embeddings (128-dim protein representations)')
 
     # Self-supervised pretraining
     p.add_argument('--pretrain_graphmae', default=False,
@@ -187,6 +189,14 @@ def main():
     print(f"  Input nodes : {info['number_of_input_nodes']}")
     print(f"  Meta nodes  : {len(info['node2idx'])}")
     print(f"  Feature dim : {nfeat}")
+
+    # ── Optional PINNACLE embeddings ─────────────────────────────────────────
+    if getattr(args, 'pinnacle_path', None):
+        from src.data.pinnacle_embeddings import load_pinnacle_embeddings
+        pinnacle = load_pinnacle_embeddings(
+            args.pinnacle_path, info['node2idx'])
+        info['meta_x'] = torch.cat([info['meta_x'], pinnacle], dim=-1)
+        print(f"  Meta feat dim (with PINNACLE): {info['meta_x'].shape[1]}")
 
     # ── Build model ───────────────────────────────────────────────────────────
     model = EMGNNImproved(

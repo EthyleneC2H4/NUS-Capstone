@@ -206,6 +206,9 @@ def load_multi_network_data(
         meta_node_names,
     ])
 
+    # ── Optional: concatenate PINNACLE pretrained embeddings to meta_x ──
+    # (handled at model level via meta_linear input dimension)
+
     info = dict(
         node2idx=node2idx,
         meta_x=meta_x,
