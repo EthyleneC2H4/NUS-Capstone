@@ -49,6 +49,30 @@ class FocalLoss(nn.Module):
         return (focal_weight * nll).mean()
 
 
+class HighLowPassSeparation(nn.Module):
+    """
+    Heterophily-aware gated fusion of low-pass (neighbourhood mean) and
+    high-pass (self − neighbourhood mean) signals.
+
+    PPI networks have low homophily — cancer genes' neighbours are mostly
+    non-cancer genes — so standard GCN smoothing dilutes the discriminative
+    signal.  This module lets the model learn per-node how much to rely on
+    the smoothed vs. the residual (difference) representation.
+    """
+
+    def __init__(self, hidden_channels: int):
+        super().__init__()
+        self.gate = nn.Sequential(
+            nn.Linear(hidden_channels * 2, hidden_channels),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, x_original, x_smoothed):
+        x_high = x_original - x_smoothed
+        g = self.gate(torch.cat([x_smoothed, x_high], dim=-1))
+        return g * x_smoothed + (1 - g) * x_high
+
+
 def _build_conv(args, in_channels: int, out_channels: int) -> nn.Module:
     """Instantiate a single graph-convolution layer based on CLI args."""
     if getattr(args, 'gcn', False):
@@ -155,6 +179,13 @@ class EMGNNImproved(torch.nn.Module):
             for _ in range(n_layers)
         ])
 
+        # ── Heterophily-aware high/low-pass gating (optional) ─────────────
+        self.heterophily_aware = getattr(args, 'heterophily_aware', False)
+        if self.heterophily_aware:
+            self.hl_gates = nn.ModuleList([
+                HighLowPassSeparation(hidden_channels) for _ in range(n_layers)
+            ])
+
         # ── Normalisation stack ────────────────────────────────────────────
         def _make_norm(channels):
             if norm_type == 'batch':
@@ -247,13 +278,19 @@ class EMGNNImproved(torch.nn.Module):
 
         for i in range(self.n_layers):
             identity = x
-            x = self.conv[i](x, edge_index)
+            x_conv = self.conv[i](x, edge_index)
             if self.bn_layers is not None:
-                x = self.bn_layers[i](x)
-            x = self.leakyrelu(x)
-            # skip connection from layer 1 onward (dims always match here)
-            if self.use_residual and i >= 1:
-                x = x + identity
+                x_conv = self.bn_layers[i](x_conv)
+            x_conv = self.leakyrelu(x_conv)
+
+            if self.heterophily_aware:
+                # Gated high/low-pass separation (replaces plain residual)
+                x = self.hl_gates[i](identity, x_conv)
+            else:
+                x = x_conv
+                if self.use_residual and i >= 1:
+                    x = x + identity
+
             x = F.dropout(x, self.dropout, training=self.training)
 
         # ── 4. Meta-graph message passing ──────────────────────────────────
