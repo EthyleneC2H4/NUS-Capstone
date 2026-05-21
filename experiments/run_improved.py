@@ -104,6 +104,12 @@ def parse_args():
     p.add_argument('--drop_edge_rate', type=float, default=0.0,
                    help='DropEdge: fraction of edges randomly dropped per forward pass (0=off, 0.1 recommended)')
 
+    # Self-supervised pretraining
+    p.add_argument('--pretrain_graphmae', default=False,
+                   type=lambda x: x in ('1','True','true'),
+                   help='Run GraphMAE pretraining before fine-tuning')
+    p.add_argument('--pretrain_epochs', type=int, default=200)
+
     # Misc
     p.add_argument('--seed',    type=int,  default=72)
     p.add_argument('--no_cuda', action='store_true', default=False)
@@ -183,6 +189,19 @@ def main():
 
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"  Model params: {n_params:,}")
+
+    # ── Optional GraphMAE pretraining ─────────────────────────────────────
+    if getattr(args, 'pretrain_graphmae', False):
+        from src.training.pretrain_graphmae import pretrain_graphmae, load_pretrained_weights
+        print(f"\n[Stage 1] GraphMAE Self-Supervised Pretraining "
+              f"({args.pretrain_epochs} epochs) ...")
+        enc_state = pretrain_graphmae(
+            loader, info, args, device,
+            pretrain_epochs=args.pretrain_epochs,
+        )
+        n_loaded = load_pretrained_weights(model, enc_state)
+        print(f"  Transferred {n_loaded} parameter tensors to EMGNNImproved")
+        print("[Stage 2] Fine-tuning with labels ...\n")
 
     # Move data to device
     meta_y   = info['meta_y'].to(device)
