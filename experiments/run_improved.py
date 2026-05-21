@@ -114,6 +114,8 @@ def parse_args():
                    help='Random-Walk positional encoding dimension (0=off, 16 recommended)')
     p.add_argument('--drop_edge_rate', type=float, default=0.0,
                    help='DropEdge: fraction of edges randomly dropped per forward pass (0=off, 0.1 recommended)')
+    p.add_argument('--hypergraph_gmt', type=str, default=None,
+                   help='Path to GMT file for hypergraph pathway integration (e.g., h.all.v2024.1.Hs.symbols.gmt)')
 
     # Self-supervised pretraining
     p.add_argument('--pretrain_graphmae', default=False,

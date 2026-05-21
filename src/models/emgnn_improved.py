@@ -273,6 +273,20 @@ class EMGNNImproved(torch.nn.Module):
         else:
             self.meta_gnn = _build_conv(args, hidden_channels, hidden_channels)
 
+        # ── Optional hypergraph pathway encoder ────────────────────────────
+        self.hypergraph_H = None
+        if getattr(args, 'hypergraph_gmt', None):
+            from src.data.build_hypergraph import load_gmt, build_hypergraph_incidence
+            from src.models.hypergnn import HyperGNNEncoder
+            gene_sets = load_gmt(args.hypergraph_gmt)
+            H, self.hyperedge_names = build_hypergraph_incidence(
+                gene_sets, node2idx, min_members=5)
+            self.register_buffer('hypergraph_H', H)
+            meta_feat_dim = meta_x.shape[1] if meta_x is not None else nfeat
+            self.hyper_encoder = HyperGNNEncoder(
+                meta_feat_dim, hidden_channels, n_layers=2)
+            self.hyper_fusion = nn.Linear(hidden_channels * 2, hidden_channels)
+
         # ── Classifier ────────────────────────────────────────────────────
         self.classifier = nn.Linear(hidden_channels, nclass)
 
@@ -379,6 +393,16 @@ class EMGNNImproved(torch.nn.Module):
             x_all = self.meta_bn(x_all)
         x_all = self.leakyrelu(x_all)
         x_all = F.dropout(x_all, self.dropout, training=self.training)
+
+        # ── 4b. Optional hypergraph pathway fusion ─────────────────────────
+        if self.hypergraph_H is not None:
+            meta_embed = x_all[self.nb_nodes:]  # meta-node embeddings
+            hyper_embed = self.hyper_encoder(
+                meta_x, self.hypergraph_H.to(device))
+            fused = self.hyper_fusion(
+                torch.cat([meta_embed, hyper_embed], dim=-1))
+            fused = self.leakyrelu(fused)
+            x_all = torch.cat([x_all[:self.nb_nodes], fused], dim=0)
 
         # ── 5. Classification ──────────────────────────────────────────────
         out = self.classifier(x_all)
