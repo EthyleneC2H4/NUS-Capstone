@@ -1,0 +1,82 @@
+% ── sections/00_frontmatter.tex ───────────────────────────────────────────────
+
+% ── Title ─────────────────────────────────────────────────────────────────────
+{\centering
+  \fontsize{16}{19}\bfseries\selectfont
+  Cancer Driver Gene Prediction via Explainable Multilayer Graph Neural Networks
+  with Multi-Network Integration and Pathway Enrichment Analysis
+  \par
+}
+
+\vspace{0.5em}
+
+% ── Authors ───────────────────────────────────────────────────────────────────
+{\centering
+  \normalsize
+  Yixi Wang\textsuperscript{1*}
+  \par
+}
+
+\vspace{0.3em}
+
+% ── Affiliations ──────────────────────────────────────────────────────────────
+{\centering
+  \small
+  \textsuperscript{1}Department of Computer Science, School of Computing,
+  National University of Singapore, 13 Computing Drive, Singapore 117417\\
+  *Corresponding author: \url{c2h4wang@u.nus.edu}
+  \par
+}
+
+\vspace{1em}
+
+% ── Author Details Block ──────────────────────────────────────────────────────
+\noindent\textit{Article Type:} Research Article
+
+\noindent\textbf{Yixi Wang:}
+Highest Qualification: Bachelor of Computing (in progress).
+Department: Computer Science.
+Post/Rank: Undergraduate student, Year 4, Computer Science.
+Affiliation: School of Computing, National University of Singapore,
+13 Computing Drive, Singapore 117417.
+email: c2h4wang@u.nus.edu.
+
+\vspace{1em}
+
+% ── Abstract ──────────────────────────────────────────────────────────────────
+\noindent\textbf{ABSTRACT}
+
+\noindent
+Identifying cancer driver genes from the vast landscape of somatic mutations is a central
+challenge in computational oncology. We build upon and extend the Explainable Multilayer
+Graph Neural Network (EMGNN), which fuses multi-omics node features with protein--protein
+interaction (PPI) network topology via a two-stage graph neural network architecture.
+Our work pursues four objectives. First, we reproduce the benchmark, achieving a mean
+AUPR~=~0.743 (best~=~0.753) on the CPDB network (GCN backbone, 18 runs), confirming the
+published trend. Second, we perform systematic ablation of four architectural
+improvements---residual skip connections, Batch Normalisation, label smoothing
+($\varepsilon$~=~0.05), and cosine learning-rate annealing---and find that BatchNorm1d is
+detrimental in full-batch graph settings ($-$4.2\% AUPR); residual connections and label
+smoothing are retained as beneficial components. Bayesian hyperparameter optimisation
+(Optuna, 50 trials) identifies a superior configuration achieving AUPR~=~\textbf{0.8023}
+(+5.4\% over baseline). Third, we extend the framework to all six PPI databases using
+learnable per-network importance weights, achieving AUPR~=~\textbf{0.8067} and
+AUROC~=~\textbf{0.9170}, a gain of \textbf{+5.9~percentage points} over the
+single-network baseline. Learned network weights confirm CPDB and Multinet as the most
+informative databases (weights~=~0.210 and 0.201). Fourth, we apply Integrated Gradients
+attribution---revealing that DNA methylation and gene expression features dominate the
+cancer signal---and Gene Set Enrichment Analysis via Enrichr, recovering 31 significant
+Hallmark pathways (FDR~$<$~0.05); the highest-ranked terms include Epithelial Mesenchymal
+Transition (FDR~=~$1.6\times10^{-17}$), PI3K/AKT/mTOR Signalling
+(FDR~=~$5.8\times10^{-15}$), and Apoptosis (FDR~=~$6.4\times10^{-11}$). The top predicted
+genes---TP53, MUC16, CTNNB1, PIK3CA---are all well-established oncogenes or tumour
+suppressors, validating the model's biological fidelity. These findings demonstrate that
+multi-network integration, systematic hyperparameter optimisation, and interpretability
+analysis are complementary strategies for building robust, trustworthy cancer gene predictors.
+
+\vspace{0.5em}
+\noindent\textbf{Keywords:} cancer driver gene prediction, graph neural network,
+protein--protein interaction network, multi-omics integration, gene set enrichment analysis,
+model interpretability, hyperparameter optimisation
+
+\vspace{1em}

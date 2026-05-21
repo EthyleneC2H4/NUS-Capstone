@@ -1,0 +1,47 @@
+% ── sections/01_introduction.tex ─────────────────────────────────────────────
+
+\section{Introduction}
+
+Cancer arises through the accumulation of somatic mutations in a subset of genes---termed
+\textit{cancer driver genes}---that confer selective growth advantages to cells. Distinguishing
+these drivers from the large background of passenger mutations is essential for understanding
+tumourigenesis, stratifying patients, and selecting targeted therapies~\cite{emogi2021}.
+Genome-wide sequencing projects such as TCGA have catalogued thousands of mutations across
+dozens of cancer types, yet the challenge of prioritising functionally relevant alterations
+at scale remains largely unsolved~\cite{emgnn2023}.
+
+Graph Neural Networks (GNNs) have emerged as a natural framework for this problem because
+PPI networks provide a biologically meaningful relational structure: genes with similar
+functions tend to cluster in network neighbourhoods, and disease genes are enriched in
+specific modules~\cite{gcn2017}. Early GNN-based approaches such as EMOGI~\cite{emogi2021}
+encode each gene as a node with multi-omics features and propagate information through a
+single PPI network, achieving state-of-the-art precision--recall performance. The more
+recent EMGNN framework~\cite{emgnn2023} generalises this to a multilayer setting by
+constructing a \textit{meta-graph} whose nodes aggregate evidence from multiple per-network
+GNN encoders, and further provides Integrated Gradients explanations at the edge and
+feature level.
+
+Despite these advances, several open questions remain. First, it is unclear which
+architectural improvements---residual connections, normalisation, regularisation via label
+smoothing, adaptive learning-rate schedules---translate to gains on biologically sparse,
+full-batch graph tasks, where the entire network is processed in a single forward pass.
+Second, while EMGNN nominally supports multiple PPI networks, the original evaluation is
+primarily single-network; the extent of the multi-network gain and the role of per-network
+importance weights have not been systematically quantified. Third, pathway-level
+interpretability---connecting gene predictions to known cancer hallmarks---has not been fully
+explored within the EMGNN framework~\cite{hallmarks2011}.
+
+This work closes these gaps with a systematic study of the EMGNN framework that moves from
+reproduction to improvement to interpretation. We first establish a faithful reproduction
+of the original benchmark and then ask: which architectural choices actually help? Our
+ablation and Bayesian hyperparameter search reveal that BatchNorm1d is \emph{harmful} in
+full-batch graph settings ($-$4.2\% AUPR), while removing it together with tuned
+hyperparameters yields AUPR~=~0.8023 (+5.4\% over baseline). We then show that training
+across all six available PPI databases with learnable per-network importance weights
+further improves performance to AUPR~=~0.8067 (+5.9\%), while the learned weights
+quantify each database's relative contribution. Finally, Integrated Gradients and
+GSEA analysis reveal that the model relies primarily on epigenetic (methylation) and
+transcriptomic (gene expression) signals rather than mutation frequency, and that its
+top-ranked genes are significantly enriched in canonical cancer hallmarks including EMT,
+PI3K/AKT/mTOR, and G2-M checkpoint pathways.
+

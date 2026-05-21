@@ -18,3 +18,12 @@ results/hparam_search.db
 
 # Run logs
 results/run_all_*.log
+
+# LaTeX build artifacts (keep .pdf for distribution)
+LaTeX/*.aux
+LaTeX/*.log
+LaTeX/*.out
+LaTeX/*.bbl
+LaTeX/*.blg
+LaTeX/*.toc
+LaTeX/*.synctex.gz

@@ -1,0 +1,140 @@
+% ── sections/03_theory.tex ───────────────────────────────────────────────────
+
+\section{Theory and Model Architecture}
+\label{sec:theory}
+
+\subsection{Per-Network Graph Neural Network Encoder}
+
+Let $\mathcal{G}^{(k)} = (\mathcal{V}^{(k)}, \mathcal{E}^{(k)})$ denote the $k$-th PPI
+network with node feature matrix $\mathbf{X}^{(k)} \in \mathbb{R}^{N_k \times D}$, where
+$N_k$ is the number of genes in network $k$ and $D = 64$ is the multi-omics feature
+dimension. A shared $L$-layer GNN encoder produces node embeddings:
+\begin{equation}
+  \mathbf{H}^{(k,l)} = \sigma\!\left(
+    \text{GNN}_l\!\left(\mathbf{H}^{(k,l-1)},\, \mathbf{A}^{(k)}\right)
+  \right), \quad l = 1, \ldots, L,
+  \label{eq:gnn_layer}
+\end{equation}
+where $\mathbf{H}^{(k,0)} = \mathbf{X}^{(k)}$, $\mathbf{A}^{(k)}$ is the symmetrically
+normalised adjacency matrix with added self-loops, and $\sigma$ is LeakyReLU. We support
+four GNN variants:
+
+\textbf{GCN}~\cite{gcn2017}: $\text{GNN}(\mathbf{H},\mathbf{A}) = \hat{\mathbf{A}}\mathbf{H}\mathbf{W}$,
+where $\hat{\mathbf{A}} = \tilde{\mathbf{D}}^{-1/2}\tilde{\mathbf{A}}\tilde{\mathbf{D}}^{-1/2}$
+is the symmetric normalised adjacency.
+
+\textbf{GAT}~\cite{gat2018}: Attention coefficients $\alpha_{ij}$ are learned via a shared
+attentional mechanism over node pairs, allowing the model to weight neighbour contributions
+adaptively.
+
+\textbf{GIN}~\cite{gin2019}: $\text{GNN}(\mathbf{H},\mathbf{A}) =
+\text{MLP}\!\left((1+\epsilon)\mathbf{H} + \mathbf{A}\mathbf{H}\right)$, maximally
+expressive within the Weisfeiler--Lehman hierarchy.
+
+\textbf{GraphSAGE}~\cite{sage2017}: $\text{GNN}(\mathbf{H},\mathbf{A}) =
+\mathbf{W}\,[\mathbf{h}_u \,\|\, \text{MEAN}_{v \in \mathcal{N}(u)}\mathbf{h}_v]$,
+concatenating a node's own embedding with its mean neighbourhood embedding.
+
+When residual connections are enabled, layers $l \ge 2$ add a skip connection:
+\begin{equation}
+  \mathbf{H}^{(k,l)} = \sigma\!\left(\text{GNN}_l\!\left(\mathbf{H}^{(k,l-1)},
+  \mathbf{A}^{(k)}\right)\right) + \mathbf{H}^{(k,l-1)}.
+  \label{eq:residual}
+\end{equation}
+
+\subsection{Meta-Graph Construction}
+
+After per-network encoding, a meta-graph $\mathcal{G}^{\text{meta}}$ is constructed.
+Each unique gene across all $K$ networks receives one meta-node; directed edges connect
+each per-network copy of gene $i$ (in network $k$) to its meta-node. Meta-node features
+$\mathbf{X}^{\text{meta}} \in \mathbb{R}^{M \times D}$ are initialised by assigning each
+meta-node the multi-omics features of the corresponding gene (from whichever network first
+provides them), where $M$ is the number of unique genes. This design aggregates
+cross-network evidence without redundancy and scales linearly with the number of unique genes.
+
+\subsection{Learnable Per-Network Importance Weights}
+
+In the standard EMGNN, all network encoders contribute equally to the meta-graph.
+We introduce a trainable weight vector $\boldsymbol{\theta} \in \mathbb{R}^{K}$, producing
+normalised network importances:
+\begin{equation}
+  \mathbf{w} = \text{softmax}(\boldsymbol{\theta}), \quad
+  w_k = \frac{e^{\theta_k}}{\sum_{j=1}^{K} e^{\theta_j}}.
+  \label{eq:network_weights}
+\end{equation}
+The embedding of each input node in network $k$ is scaled by $w_k$ before being
+passed to the meta-graph GNN, allowing high-quality networks to be up-weighted
+end-to-end during training.
+
+\subsection{Meta-Graph GNN and Classifier}
+
+A second $L$-layer GNN (same backbone) operates on $\mathcal{G}^{\text{meta}}$,
+aggregating cross-network signals over meta-node edges:
+\begin{equation}
+  \mathbf{Z} = \text{GNN}^{\text{meta}}\!\left(\mathbf{X}^{\text{meta}},\,
+  \mathbf{A}^{\text{meta}}\right) \in \mathbb{R}^{M \times H}.
+  \label{eq:meta_gnn}
+\end{equation}
+Each meta-node embedding $\mathbf{z}_i$ is passed through a two-layer MLP with softmax
+output to produce cancer-class probabilities $\hat{p}_i$. The model is trained with
+cross-entropy loss, optionally with label smoothing as in Eq.~\ref{eq:labelsmoothing}.
+
+\subsection{Normalisation in Full-Batch Graph Learning}
+
+Standard Batch Normalisation~\cite{batchnorm2015} normalises over the batch dimension:
+\begin{equation}
+  \hat{h}_i = \frac{h_i - \mu_\mathcal{B}}{\sqrt{\sigma^2_\mathcal{B} + \epsilon}},
+  \quad \mu_\mathcal{B} = \frac{1}{N}\sum_{i=1}^N h_i,
+  \label{eq:batchnorm}
+\end{equation}
+where $\mathcal{B}$ is the set of all $N$ nodes. In the full-batch graph setting there is
+no variation across batches, so the running statistics computed during training equal those
+at inference; the normalisation is effectively a fixed affine transform and provides no
+regularisation benefit.
+
+GraphNorm~\cite{graphnorm2021} instead computes per-graph statistics, subtracting a
+learnable mean shift $\alpha \cdot \mu_{\mathcal{G}}$ before normalisation:
+\begin{equation}
+  \hat{h}_i = \frac{h_i - \alpha\,\mu_{\mathcal{G}}}
+              {\sqrt{\sigma^2_{\mathcal{G}} + \epsilon}},
+  \quad \mu_{\mathcal{G}} = \frac{1}{|\mathcal{V}|}\sum_{i \in \mathcal{V}} h_i,
+  \label{eq:graphnorm}
+\end{equation}
+where $\alpha \in [0,1]$ is a trainable scalar that controls the degree of mean removal.
+This preserves meaningful within-graph distributional information that \texttt{BatchNorm1d}
+discards in the full-batch regime.
+
+Our improved model supports \texttt{norm\_type} $\in$ \{\texttt{batch}, \texttt{graph},
+\texttt{layer}, \texttt{none}\}, implemented via \texttt{BatchNorm1d}, \texttt{GraphNorm}
+(from PyTorch Geometric), \texttt{LayerNorm}, and identity respectively. Ablation results
+in Section~\ref{sec:ablation} demonstrate the cost of \texttt{batch} normalisation; direct
+comparison of the remaining options is future work.
+
+\subsection{Integrated Gradients for Interpretability}
+
+Integrated Gradients~\cite{ig2017} satisfies the \emph{completeness} axiom: the sum of
+all feature attributions equals the difference between the model output at the input and
+at the baseline. For a gene with feature vector $\mathbf{x}$ and zero baseline
+$\mathbf{x}' = \mathbf{0}$:
+\begin{equation}
+  \text{IG}_d(\mathbf{x}) =
+    x_d \int_0^1
+    \frac{\partial F(\alpha\mathbf{x})}{\partial x_d} \, d\alpha,
+  \label{eq:ig}
+\end{equation}
+where $F$ is the cancer-class logit and the integral is approximated with 50 Riemann
+steps. This property ensures that attributions account for the full prediction score, making
+Integrated Gradients preferable to vanilla gradient methods for model-level interpretability.
+
+\textbf{Baseline choice.} We use the zero vector $\mathbf{x}' = \mathbf{0}$ as the
+reference point, which is the most common choice in the IG literature. This corresponds to
+asking: ``how much does each feature contribute relative to a gene with all omics
+measurements set to zero?'' The zero baseline is interpretable when features are
+pre-normalised (as in the EMOGI/EMGNN pipeline), since zero approximately represents the
+absence of signal or a population-average reference. A potential limitation is that the
+zero vector may not lie in the natural data manifold; alternative baselines such as a
+Gaussian blur or the mean across non-cancer genes could be explored in future work to
+assess baseline sensitivity. Attribution magnitudes reported in this work should therefore
+be interpreted as importance \emph{relative to the zero baseline}, not as absolute measures
+of biological relevance.
+

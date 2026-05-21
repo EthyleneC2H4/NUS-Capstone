@@ -1,0 +1,64 @@
+% ── sections/06_declarations.tex ─────────────────────────────────────────────
+
+\section*{Declarations}
+
+\subsection*{Study Limitations}
+
+\textbf{Single-seed evaluation.} Most reported results are based on single training runs.
+Multi-seed validation of the Optuna best configuration (hidden=32, $L$=4, seeds 1--5)
+yields mean AUPR~=~0.742~$\pm$~0.008, comparable to the M1 baseline mean (0.743), indicating
+that the single-trial Optuna result (0.8023) is seed-dependent. The BatchNorm ablation
+result is controlled and reproducible. For the six-network model (AUPR~=~0.8067), full
+multi-seed variance estimation remains as future work.
+
+\textbf{Gain decomposition.} A control experiment (Benchmark GCN, all six networks)
+achieves AUPR~=~0.7987, isolating the data contribution (+0.054) from the architecture
+contribution (+0.008). The majority of the +5.9\% total gain derives from multi-network
+data integration rather than the architectural improvements introduced in EMGNNImproved.
+
+\textbf{Network weights circular dependency.} The learned per-network importance weights
+(Section~4.3) assign the highest weight to CPDB (0.210). However, because the CPDB test
+set is used as the optimisation target throughout training and evaluation, the model
+receives a training signal that directly rewards features derived from CPDB. This creates
+a circular dependency: the CPDB network may be up-weighted partly because it is the
+evaluation network, not solely because of its biological quality. Independent evaluation
+on a held-out network or cancer type would be required to confirm that the weight
+rankings reflect intrinsic network quality.
+
+\textbf{Zero-baseline IG attribution.} Integrated Gradients scores are computed relative
+to a zero-feature baseline (see Section~\ref{sec:theory}). Features with high raw
+magnitudes (such as un-centred methylation probes) may receive inflated attributions
+independent of their true discriminative contribution. Baseline sensitivity analysis
+using alternative reference points was not performed in this study.
+
+\textbf{Validation split protocol.} The validation split is constructed from a 10\%
+subset of training nodes rather than the official \texttt{mask\_val} provided in the HDF5
+files, which may introduce minor protocol inconsistencies relative to the original
+EMGNN evaluation.
+
+\textbf{Normalisation ablation.} GraphNorm and LayerNorm are implemented as alternative
+normalisation strategies but were not evaluated experimentally against the no-normalisation
+baseline. The ablation study only contrasts BatchNorm1d with no normalisation; a full
+three-way comparison is deferred to future work.
+
+\subsection*{Acknowledgements}
+
+The author thanks the original EMGNN authors (Chatzianastasis et al.) and the EMOGI
+benchmark authors (Schulte-Sasse et al.) for releasing their code and datasets publicly,
+which made this reproducibility and extension study possible.
+
+\subsection*{Funding Source}
+
+None. This work was conducted as part of a final-year undergraduate capstone project at
+the National University of Singapore and received no external funding.
+
+\subsection*{Competing Interests}
+
+The author declares no competing interests in relation to this publication.
+
+\subsection*{Human and Animal Related Study}
+
+This study involves computational analysis of publicly available genomic datasets (TCGA)
+and PPI network databases. No human subjects were recruited and no animals were used.
+Ethical approval and informed consent are therefore not applicable.
+

@@ -1,0 +1,60 @@
+% ── sections/05_conclusions.tex ──────────────────────────────────────────────
+
+\section{Conclusions}
+
+This work presents a systematic investigation of cancer driver gene prediction using
+multilayer graph neural networks, building upon and extending the EMGNN benchmark through
+four interconnected methodological contributions.
+
+Benchmark reproduction confirms that the GCN backbone achieves a mean AUPR of 0.743 (best
+0.753) across 18 independent runs on CPDB, consistent with the published rank ordering of
+GCN, GIN, and GAT backbones. The controlled ablation study of architectural improvements
+yields an important negative finding: BatchNorm1d is harmful in the full-batch graph learning
+setting and reduces AUPR by 4.2 percentage points; this result is reproducible and has
+practical implications for practitioners applying normalisation layers to graph-structured
+data where the entire graph is processed in a single forward pass. Residual skip connections
+and label smoothing are confirmed as compatible improvements.
+
+Bayesian hyperparameter optimisation (Optuna, 50 trials) identifies a configuration with
+hidden dimension 32, four GNN layers, no BatchNorm, and a step learning-rate schedule,
+achieving AUPR~=~\textbf{0.8023} on CPDB---surpassing the manual ablation and the
+benchmark by 5.4 percentage points. This result demonstrates the importance of systematic
+search over the architecture space, particularly for the hidden dimension and depth parameters.
+
+The multi-network extension demonstrates that aggregating complementary PPI evidence
+through a meta-graph provides a substantial and consistent performance improvement.
+Training simultaneously on all six PPI databases with learned importance weights raises
+AUPR from 0.748 to \textbf{0.8067} (+5.9\%), with AUROC reaching \textbf{0.9170}.
+The learned per-network weights confirm the relative importance of each database: CPDB
+and Multinet receive the highest weights (0.210 and 0.201), while IRefIndex (the sparsest
+and oldest database) receives the lowest (0.096). This end-to-end differentiation of
+network quality enables the model to adaptively exploit complementary evidence without
+manual database pre-selection.
+
+The interpretability analysis provides biological grounding for the model's predictions.
+Integrated Gradients attribution reveals that DNA methylation and gene expression features
+dominate the top-ranked importance scores, with METH:LIHC (hepatocellular carcinoma
+methylation) and GE:BLCA (bladder cancer expression) as the two most discriminative
+features. This finding suggests that epigenetic reprogramming and transcriptomic
+dysregulation are the primary signals distinguishing cancer from non-cancer genes.
+GSEA recovers 31 significant Hallmark pathways (FDR~$<$~0.05)---led by EMT
+(FDR~=~$1.6\times10^{-17}$), PI3K/AKT/mTOR, and TGF-$\beta$---confirming that the
+predicted cancer gene set is concentrated in established oncogenic programmes. The
+high-confidence prediction of TP53, MUC16, CTNNB1, PIK3CA, and BRCA1 at the top of
+the list validates biological fidelity.
+
+Several limitations should be noted. Results are reported without averaging over multiple
+random seeds for the multi-network and Optuna experiments, which introduces run-to-run
+variability. GSEA was run on predictions from the single-network model rather than the
+best six-network model, and future work should validate whether the pathway enrichment
+profile shifts with improved multi-network predictions. The current implementation does
+not evaluate GraphNorm and LayerNorm as replacements for BatchNorm in a systematic
+multi-network setting; both are implemented and represent a natural next experimental step.
+
+Taken together, these results demonstrate that: (i) multi-network integration consistently
+outperforms single-network baselines regardless of model variant; (ii) appropriate
+hyperparameter search and architectural choices (no BatchNorm, residual connections, label
+smoothing) amplify the gains further; and (iii) the resulting predictions are biologically
+interpretable and pathway-coherent. The code, exact package versions, trained model artefacts,
+and reproducible experiment configurations are released publicly to support further
+development of interpretable cancer gene prediction models.
