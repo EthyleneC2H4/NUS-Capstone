@@ -19,7 +19,10 @@ results/hparam_search.db
 # Run logs
 results/run_all_*.log
 
-# LaTeX build artifacts (keep .pdf for distribution)
+# LaTeX source files (only PDF is committed)
+LaTeX/*.tex
+LaTeX/sections/
+LaTeX/preamble.tex
 LaTeX/*.aux
 LaTeX/*.log
 LaTeX/*.out
