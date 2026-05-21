@@ -116,6 +116,10 @@ def parse_args():
                    help='DropEdge: fraction of edges randomly dropped per forward pass (0=off, 0.1 recommended)')
     p.add_argument('--hypergraph_gmt', type=str, default=None,
                    help='Path to GMT file for hypergraph pathway integration (e.g., h.all.v2024.1.Hs.symbols.gmt)')
+    p.add_argument('--hipgnn_lambda', type=float, default=0.0,
+                   help='HIPGNN auxiliary anomaly loss weight (0=off, 0.1 recommended)')
+    p.add_argument('--hipgnn_eigvecs', type=int, default=32,
+                   help='Number of Laplacian eigenvectors for HIPGNN spectral view')
 
     # Self-supervised pretraining
     p.add_argument('--pretrain_graphmae', default=False,

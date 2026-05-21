@@ -273,6 +273,15 @@ class EMGNNImproved(torch.nn.Module):
         else:
             self.meta_gnn = _build_conv(args, hidden_channels, hidden_channels)
 
+        # ── Optional HIPGNN auxiliary anomaly detection head ───────────────
+        self.hipgnn_aux = None
+        hipgnn_eigvecs = getattr(args, 'hipgnn_eigvecs', None)
+        if getattr(args, 'hipgnn_lambda', 0.0) > 0 and hipgnn_eigvecs is not None:
+            from src.models.hipgnn import HIPGNNAuxHead
+            n_eigvecs = hipgnn_eigvecs if isinstance(hipgnn_eigvecs, int) else 32
+            self.hipgnn_aux = HIPGNNAuxHead(nfeat, hidden_channels, n_eigvecs)
+            self.hipgnn_lambda = getattr(args, 'hipgnn_lambda', 0.1)
+
         # ── Optional hypergraph pathway encoder ────────────────────────────
         self.hypergraph_H = None
         if getattr(args, 'hypergraph_gmt', None):
@@ -412,9 +421,10 @@ class EMGNNImproved(torch.nn.Module):
     # Loss helper (supports label smoothing)
     # ──────────────────────────────────────────────────────────────────────────
 
-    def loss(self, output, labels):
+    def loss(self, output, labels, x_raw=None, edge_index=None, eigvecs=None):
         """
-        Classification loss with optional focal weighting and label smoothing.
+        Classification loss with optional focal weighting, label smoothing,
+        and HIPGNN auxiliary anomaly detection loss.
 
         When focal_gamma > 0, uses Focal Loss (Lin et al. 2017) to handle
         class imbalance by down-weighting easy negatives.
@@ -429,5 +439,13 @@ class EMGNNImproved(torch.nn.Module):
         if self.label_smoothing > 0.0:
             eps = self.label_smoothing
             uniform = -output.mean()
-            return (1.0 - eps) * primary + eps * uniform
+            primary = (1.0 - eps) * primary + eps * uniform
+
+        # Optional HIPGNN auxiliary loss (multi-task)
+        if (self.hipgnn_aux is not None and x_raw is not None
+                and eigvecs is not None):
+            aux_out = self.hipgnn_aux(x_raw, edge_index, eigvecs)
+            aux_loss = F.nll_loss(aux_out, labels)
+            return primary + self.hipgnn_lambda * aux_loss
+
         return primary
