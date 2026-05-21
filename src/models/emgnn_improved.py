@@ -19,7 +19,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, GATConv, GINConv, SAGEConv, GraphNorm
-from torch_geometric.utils import add_self_loops
+from torch_geometric.utils import add_self_loops, dropout_edge
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -142,6 +142,7 @@ class EMGNNImproved(torch.nn.Module):
 
         alpha = getattr(args, 'alpha', 0.2)
         self.dropout = getattr(args, 'dropout', 0.5)
+        self.drop_edge_rate = getattr(args, 'drop_edge_rate', 0.0)
         self.leakyrelu = nn.LeakyReLU(alpha)
 
         # ── Input projections ──────────────────────────────────────────────
@@ -241,6 +242,9 @@ class EMGNNImproved(torch.nn.Module):
             x = x * node_w.unsqueeze(1)    # broadcast over feature dim
 
         # ── 3. Graph-level message passing with residual + normalisation ──────
+        if self.training and self.drop_edge_rate > 0:
+            edge_index, _ = dropout_edge(edge_index, p=self.drop_edge_rate)
+
         for i in range(self.n_layers):
             identity = x
             x = self.conv[i](x, edge_index)

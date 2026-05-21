@@ -98,6 +98,8 @@ def parse_args():
     p.add_argument('--feature_select',  default=True,
                    type=lambda x: x in ('1','True','true'))
     p.add_argument('--add_structural_noise', type=float, default=0.0)
+    p.add_argument('--drop_edge_rate', type=float, default=0.0,
+                   help='DropEdge: fraction of edges randomly dropped per forward pass (0=off, 0.1 recommended)')
 
     # Misc
     p.add_argument('--seed',    type=int,  default=72)
