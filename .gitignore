@@ -9,6 +9,8 @@ nohup.out
 
 # Shell scripts (local runners, not part of source)
 *.sh
+# But keep M5 experiment scripts
+!experiments/run_m5_*.sh
 
 # Model directories (large; tracked via results files instead)
 results/my_models/
