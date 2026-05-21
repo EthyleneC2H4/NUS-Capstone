@@ -101,6 +101,8 @@ def parse_args():
     p.add_argument('--feature_select',  default=True,
                    type=lambda x: x in ('1','True','true'))
     p.add_argument('--add_structural_noise', type=float, default=0.0)
+    p.add_argument('--pe_dim', type=int, default=0,
+                   help='Random-Walk positional encoding dimension (0=off, 16 recommended)')
     p.add_argument('--drop_edge_rate', type=float, default=0.0,
                    help='DropEdge: fraction of edges randomly dropped per forward pass (0=off, 0.1 recommended)')
 
@@ -163,6 +165,7 @@ def main():
     loader, info = load_multi_network_data(
         args.dataset,
         add_structural_noise=args.add_structural_noise,
+        pe_dim=getattr(args, 'pe_dim', 0),
     )
     batch = info['batch']
     nfeat = batch.x.shape[1]

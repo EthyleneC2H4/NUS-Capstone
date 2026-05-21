@@ -15,6 +15,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import torch
 from torch_geometric.data import Data, DataLoader
+from torch_geometric.transforms import AddRandomWalkPE
 
 # Re-use benchmark I/O
 import sys
@@ -56,6 +57,7 @@ def load_multi_network_data(
     dataset_names: List[str],
     add_structural_noise: float = 0.0,
     feature_engineer=None,
+    pe_dim: int = 0,
 ) -> Tuple[DataLoader, dict]:
     """
     Load and prepare multi-network data for EMGNN training.
@@ -90,8 +92,9 @@ def load_multi_network_data(
     y_list = []
 
     MAX_NODES = 100_000
+    feat_dim = len(FEATURES_ORDER) + pe_dim  # 64 + pe_dim
     meta_y = torch.zeros(MAX_NODES, 1)
-    meta_x_raw = torch.zeros(MAX_NODES, len(FEATURES_ORDER))
+    meta_x_raw = torch.zeros(MAX_NODES, feat_dim)
 
     for path in paths:
         (adj, features, y_train, y_val, y_test,
@@ -126,7 +129,7 @@ def load_multi_network_data(
 
         for i, label in enumerate(y):
             idx = node2idx[tuple(node_names[i])]
-            meta_x_raw[idx] = torch.from_numpy(features[i])
+            meta_x_raw[idx] = data.x[i]  # includes PE if pe_dim > 0
             if meta_y[idx] == 0:
                 meta_y[idx] = label.float()
 
@@ -157,9 +160,16 @@ def load_multi_network_data(
         node_names_all.append(node_names)
 
         features_t = torch.FloatTensor(features)
-        data_list.append(Data(
-            x=features_t, edge_index=edge_index, y=y, node_names=node_names
-        ))
+        data = Data(x=features_t, edge_index=edge_index, y=y,
+                    node_names=node_names)
+
+        # ── Optional Random-Walk positional encoding ──────────────────────
+        if pe_dim > 0:
+            rw = AddRandomWalkPE(walk_length=pe_dim, attr_name='rw_pe')
+            data = rw(data)
+            data.x = torch.cat([data.x, data.rw_pe], dim=-1)  # (N, 64+pe_dim)
+
+        data_list.append(data)
 
     n_unique = len(node2idx)
     meta_x = meta_x_raw[:n_unique]
