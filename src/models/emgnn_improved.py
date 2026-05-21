@@ -49,6 +49,59 @@ class FocalLoss(nn.Module):
         return (focal_weight * nll).mean()
 
 
+class CrossNetworkAttention(nn.Module):
+    """
+    Gene-level cross-network attention fusion.
+
+    Instead of a single scalar weight per PPI network, this module computes
+    per-node attention scores conditioned on both the node embedding and its
+    network identity.  Scores are softmax-normalised *within each meta-node
+    group* (i.e., across all copies of the same gene in different networks)
+    using scatter_softmax.
+
+    This lets the model learn, e.g., that TP53 is most informative in STRING
+    while BRCA1 benefits more from CPDB — something a scalar weight cannot
+    express.
+    """
+
+    def __init__(self, hidden_dim: int, n_networks: int):
+        super().__init__()
+        self.net_embed = nn.Embedding(n_networks, hidden_dim)
+        self.attn = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.LeakyReLU(0.2),
+            nn.Linear(hidden_dim, 1),
+        )
+
+    def forward(self, x, batch_idx, meta_node_idx):
+        """
+        Parameters
+        ----------
+        x : Tensor (n_input_nodes, hidden)
+            Node embeddings after GNN encoding.
+        batch_idx : Tensor (n_input_nodes,)
+            Network index for each input node (from data.batch).
+        meta_node_idx : Tensor (n_input_nodes,)
+            Meta-node index each input node maps to.
+
+        Returns
+        -------
+        x_weighted : Tensor (n_input_nodes, hidden)
+            Attention-weighted node embeddings.
+        """
+        from torch_geometric.utils import scatter
+        net_emb = self.net_embed(batch_idx)           # (N, hidden)
+        attn_input = torch.cat([x, net_emb], dim=-1)  # (N, 2*hidden)
+        scores = self.attn(attn_input).squeeze(-1)     # (N,)
+        # Softmax within each meta-node group
+        scores_max = scatter(scores, meta_node_idx, reduce='max')
+        scores = scores - scores_max[meta_node_idx]
+        exp_scores = scores.exp()
+        sum_exp = scatter(exp_scores, meta_node_idx, reduce='sum')
+        attn_weights = exp_scores / (sum_exp[meta_node_idx] + 1e-8)
+        return x * attn_weights.unsqueeze(1)
+
+
 class HighLowPassSeparation(nn.Module):
     """
     Heterophily-aware gated fusion of low-pass (neighbourhood mean) and
@@ -224,7 +277,12 @@ class EMGNNImproved(torch.nn.Module):
         self.classifier = nn.Linear(hidden_channels, nclass)
 
         # ── Learnable per-network importance weights ───────────────────────
-        if use_network_weights and data is not None:
+        self.use_cross_network_attn = getattr(args, 'cross_network_attention', False)
+        if self.use_cross_network_attn and data is not None:
+            n_graphs = len(data.node_names)
+            self.cross_net_attn = CrossNetworkAttention(hidden_channels, n_graphs)
+            self.network_weights = None  # replaced by attention
+        elif use_network_weights and data is not None:
             n_graphs = len(data.node_names)  # number of PPI graphs in batch
             self.network_weights = nn.Parameter(torch.zeros(n_graphs))
         else:
@@ -235,9 +293,13 @@ class EMGNNImproved(torch.nn.Module):
         self.nb_nodes = x.shape[0]
         node_names = np.concatenate(data.node_names, axis=0)
         meta_src, meta_dst = [], []
+        meta_node_indices = []  # input node → meta-node index (without offset)
         for i, node in enumerate(node_names):
             meta_src.append(i)
-            meta_dst.append(node2idx[tuple(node)] + x.shape[0])
+            meta_idx = node2idx[tuple(node)]
+            meta_dst.append(meta_idx + x.shape[0])
+            meta_node_indices.append(meta_idx)
+        self.register_buffer('input_to_meta', torch.tensor(meta_node_indices))
         self.meta_edge_index = torch.tensor([meta_src, meta_dst])
         self.meta_edge_index, _ = add_self_loops(self.meta_edge_index)
         self.meta_x = meta_x  # will be moved to device in forward
@@ -277,7 +339,12 @@ class EMGNNImproved(torch.nn.Module):
         meta_x_proj = self.leakyrelu(self.meta_linear(meta_x))
 
         # ── 2. Per-network importance weighting ───────────────────────────
-        if self.network_weights is not None and hasattr(data, 'batch'):
+        if self.use_cross_network_attn and hasattr(data, 'batch'):
+            # Gene-level attention: each node gets a unique weight based
+            # on its embedding and network identity
+            x = self.cross_net_attn(x, data.batch.to(device),
+                                    self.input_to_meta.to(device))
+        elif self.network_weights is not None and hasattr(data, 'batch'):
             # softmax-normalise weights so they sum to 1
             w = F.softmax(self.network_weights, dim=0)
             # data.batch[i] tells us which graph node i belongs to

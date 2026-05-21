@@ -10,6 +10,7 @@ Improvements over benchmark:
   --label_smoothing  : label smoothing epsilon (default: 0.05)
   --normalize        : 'standard' | 'minmax' | 'none' (default: standard)
   --feature_select   : drop near-zero-variance features (default: True)
+  --cross_network_attention : gene-level attention across networks (default: False)
 
 Usage
 -----
@@ -82,6 +83,9 @@ def parse_args():
     p.add_argument('--heterophily_aware', default=False,
                    type=lambda x: x in ('1','True','true'),
                    help='Enable gated high/low-pass separation for heterophilic PPI graphs')
+    p.add_argument('--cross_network_attention', default=False,
+                   type=lambda x: x in ('1','True','true'),
+                   help='Gene-level cross-network attention (replaces scalar network weights)')
     p.add_argument('--focal_gamma',    type=float, default=0.0,
                    help='Focal loss gamma (0=off, 2.0 recommended for imbalanced data)')
     p.add_argument('--focal_alpha',    type=float, default=0.75,
