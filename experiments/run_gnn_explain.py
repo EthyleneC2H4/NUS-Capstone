@@ -37,16 +37,25 @@ class _ExplainWrapper(torch.nn.Module):
     """
     PyG Explainer expects model(x, edge_index, **kwargs).
     EMGNNImproved expects model(x, edge_index, data, ...).
-    This wrapper binds `data` at construction time.
+    This wrapper binds `data` at construction time and handles
+    the two-stage architecture (input-graph GNN + meta-graph GNN).
     """
 
     def __init__(self, model, data):
         super().__init__()
         self.model = model
         self.data = data
+        self.n_input = data.x.shape[0]
 
     def forward(self, x, edge_index, **kwargs):
-        return self.model(x, edge_index, self.data, **kwargs)
+        # The explainer passes combined x_all (input + meta nodes) and
+        # edge_all (input-graph edges + meta edges). The model's per-network
+        # GNN only processes input nodes and input-graph edges; the meta-graph
+        # is handled internally via self.meta_edge_index. We pass captum=True
+        # so the model uses x[self.n_input:] as the perturbed meta features
+        # instead of the stored self.meta_x.
+        input_edge_mask = (edge_index[0] < self.n_input) & (edge_index[1] < self.n_input)
+        return self.model(x, edge_index[:, input_edge_mask], self.data, captum=True, **kwargs)
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
