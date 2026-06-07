@@ -14,7 +14,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PYTHON="${PYTHON:-python}"
+if [[ -f /root/miniconda3/envs/cancer-gnn/bin/python ]]; then
+    PYTHON="/root/miniconda3/envs/cancer-gnn/bin/python"
+else
+    PYTHON="${PYTHON:-python}"
+fi
 
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 <model_dir>"

@@ -32,3 +32,11 @@ LaTeX/*.bbl
 LaTeX/*.blg
 LaTeX/*.toc
 LaTeX/*.synctex.gz
+
+# Allow multi-purpose experiment scripts
+!experiments/run_all_experiments.sh
+!experiments/run_resume.sh
+!experiments/run_final.sh
+!experiments/run_parallel.sh
+!experiments/run_parallel2.sh
+!experiments/run_remaining.sh

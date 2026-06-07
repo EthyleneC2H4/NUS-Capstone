@@ -18,7 +18,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."   # project root
 
-PYTHON="${PYTHON:-python}"
+# AutoDL server: use conda env python directly (nohup doesn't activate conda)
+if [[ -f /root/miniconda3/envs/cancer-gnn/bin/python ]]; then
+    PYTHON="/root/miniconda3/envs/cancer-gnn/bin/python"
+else
+    PYTHON="${PYTHON:-python}"
+fi
+echo "Using Python: $PYTHON"
 LOG_DIR="results"
 SUMMARY="${LOG_DIR}/m5_ablation_summary.csv"
 mkdir -p "$LOG_DIR"

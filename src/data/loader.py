@@ -92,7 +92,7 @@ def load_multi_network_data(
     y_list = []
 
     MAX_NODES = 100_000
-    feat_dim = len(FEATURES_ORDER) + pe_dim  # 64 + pe_dim
+    feat_dim = len(FEATURES_ORDER)  # 64 (meta nodes use raw features, no PE)
     meta_y = torch.zeros(MAX_NODES, 1)
     meta_x_raw = torch.zeros(MAX_NODES, feat_dim)
 
@@ -127,12 +127,6 @@ def load_multi_network_data(
              .add(torch.tensor(y_val)))
         y_list.append(y)
 
-        for i, label in enumerate(y):
-            idx = node2idx[tuple(node_names[i])]
-            meta_x_raw[idx] = data.x[i]  # includes PE if pe_dim > 0
-            if meta_y[idx] == 0:
-                meta_y[idx] = label.float()
-
         # ── Build edge index (sparse-safe, avoids huge dense tensor) ──────
         import scipy.sparse as sp
         if sp.issparse(adj):
@@ -150,6 +144,15 @@ def load_multi_network_data(
                 edge_index, p=add_structural_noise, force_undirected=True
             )[0]
 
+        # ── Build features tensor and meta-node features ─────────────────
+        features_t = torch.FloatTensor(features)
+
+        for i, label in enumerate(y):
+            idx = node2idx[tuple(node_names[i])]
+            meta_x_raw[idx] = features_t[i]
+            if meta_y[idx] == 0:
+                meta_y[idx] = label.float()
+
         idx_train = torch.LongTensor([i for i, x in enumerate(train_mask) if x])
         idx_val   = torch.LongTensor([i for i, x in enumerate(val_mask)   if x])
         idx_test  = torch.LongTensor([i for i, x in enumerate(test_mask)  if x])
@@ -159,7 +162,6 @@ def load_multi_network_data(
         test_nodes_list.append(node_names[idx_test.numpy()])
         node_names_all.append(node_names)
 
-        features_t = torch.FloatTensor(features)
         data = Data(x=features_t, edge_index=edge_index, y=y,
                     node_names=node_names)
 

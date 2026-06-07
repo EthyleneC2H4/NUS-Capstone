@@ -269,7 +269,6 @@ class EMGNNImproved(torch.nn.Module):
                 conv=local_conv,
                 heads=getattr(args, 'gps_heads', 4),
                 attn_type='multihead',
-                attn_dropout=0.1,
             )
         else:
             self.meta_gnn = _build_conv(args, hidden_channels, hidden_channels)
