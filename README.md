@@ -13,9 +13,6 @@ Reference: [Chatzianastasis et al., *Bioinformatics* 2023](https://doi.org/10.10
 | M3 Multi-network extension | ✅ 6-net AUPR=0.8067, gain decomposition |
 | M4 Interpretability (IG + GSEA) | ✅ 28 Hallmark pathways (FDR<0.05) |
 | M5 Advanced technique ablation | ✅ 5 retained techniques evaluated; P1 heterophily best (+2.8%) |
-| External data modules | Optional future work |
-| GNNExplainer | Optional future work |
-| Paper (IMRAD) | Local-only artifact, not versioned in GitHub |
 
 **Best scoped result:** Heterophily-aware gating + 6-network EMGNNImproved: **AUPR=0.8240±0.0044, AUROC=0.9194** over 3 legacy seeds.
 
