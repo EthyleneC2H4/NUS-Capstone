@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# P10: GNNExplainer — run after M5 ablation to explain best model
+# Optional GNNExplainer — run after M5 ablation to explain best model
 # ============================================================================
 # Usage:
 #   bash experiments/run_m5_explain.sh <model_dir>
@@ -31,7 +31,7 @@ fi
 MODEL_DIR="$1"
 
 echo "============================================================"
-echo "P10: GNNExplainer on ${MODEL_DIR}"
+echo "GNNExplainer on ${MODEL_DIR}"
 echo "============================================================"
 
 # Verify required files exist

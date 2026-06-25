@@ -60,13 +60,11 @@ SEEDS=(72 1 2)
 
 EXPERIMENTS=(
     "baseline|"
-    "P0_focal_loss|--focal_gamma 2.0 --focal_alpha 0.75"
-    "P9_dropedge|--drop_edge_rate 0.1"
-    "P7_heterophily|--heterophily_aware 1"
-    "P2_graphmae|--pretrain_graphmae 1 --pretrain_epochs 200"
-    "P1_pe_dim16|--pe_dim 16"
-    "P3_gps_meta|--gps_meta 1 --gps_heads 4"
-    "P4_cross_net_attn|--cross_network_attention 1"
+    "P1_heterophily|--heterophily_aware 1"
+    "P2_cross_net_attn|--cross_network_attention 1"
+    "P3_dropedge|--drop_edge_rate 0.1"
+    "P4_graphmae|--pretrain_graphmae 1 --pretrain_epochs 200"
+    "P5_focal_loss|--focal_gamma 2.0 --focal_alpha 0.75"
 )
 
 extract_metrics() {

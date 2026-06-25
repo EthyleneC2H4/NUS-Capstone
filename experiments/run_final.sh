@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================================
-# Resume: P3_gps_meta + P4_cross_net_attn + Phase 2 + Phase 3
-# (P1_pe_dim16 skipped — RandomWalk PE too slow on large PPI graphs)
+# Resume legacy discarded GPS plus retained P2_cross_net_attn + Phase 2 + Phase 3
+# (rwpe_dim16 skipped — RandomWalk PE too slow on large PPI graphs)
 # ============================================================================
 set -euo pipefail
 
@@ -40,13 +40,13 @@ BASE_FLAGS=(
 SEEDS=(72 1 2)
 
 echo "============================================================" | tee "$MASTER_LOG"
-echo "[$(timestamp)] FINAL RUN: P3_gps + P4_cross_attn" | tee -a "$MASTER_LOG"
+echo "[$(timestamp)] FINAL RUN: gps_meta + P2_cross_attn" | tee -a "$MASTER_LOG"
 echo "  GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null)" | tee -a "$MASTER_LOG"
 echo "============================================================" | tee -a "$MASTER_LOG"
 
 REMAINING=(
-    "P3_gps_meta|--gps_meta 1 --gps_heads 4"
-    "P4_cross_net_attn|--cross_network_attention 1"
+    "gps_meta|--gps_meta 1 --gps_heads 4"
+    "P2_cross_net_attn|--cross_network_attention 1"
 )
 
 for entry in "${REMAINING[@]}"; do

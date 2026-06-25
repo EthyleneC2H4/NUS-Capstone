@@ -29,19 +29,19 @@
 | M3 fixed baseline | AUPR 0.8019 +/- 0.0050 | `results/m5_ablation_summary.csv` | Legacy five-seed summary |
 | M4 Integrated Gradients | METH:LIHC 0.908 | archived model attribution CSV | Legacy six-network model |
 | M4 GSEA | 28 Hallmark sets at FDR < 0.05 | archived `gsea/enrichr_results.csv` | Legacy six-network model |
-| M5 P7 heterophily-aware | AUPR 0.8240 +/- 0.0044 | `results/m5_ablation_summary.csv` | Legacy three-seed final-scope result; optional fixed-split robustness check |
-| M5 P4 cross-network attention | AUPR 0.8142 +/- 0.0053 | `results/m5_ablation_summary.csv` | Legacy three-seed final-scope result; optional fixed-split robustness check |
-| M5 P9 DropEdge | AUPR 0.8064 +/- 0.0061 | `results/m5_ablation_summary.csv` | Legacy three-seed result |
-| M5 P2 GraphMAE | AUPR 0.8002 +/- 0.0075 | `results/m5_ablation_summary.csv` | Legacy three-seed result |
-| M5 P0 Focal Loss + label smoothing | AUPR 0.7608 +/- 0.0045 | `results/m5_ablation_summary.csv` | Legacy three-seed result; interaction explanation remains a hypothesis |
-| M5 P3 GPS | CUDA OOM, about 189 GiB allocation request | archived local P3 logs | Failed |
-| M5 P1 RWPE | impractical preprocessing cost at dimension 16 | archived local P1 logs | Skipped/incomplete |
-| P10 GNNExplainer | tensor-dimension mismatch | archived `gnnexplainer.log` | Failed/unresolved |
+| M5 P1 heterophily-aware | AUPR 0.8240 +/- 0.0044 | `results/m5_ablation_summary.csv` | Legacy three-seed final-scope result; optional fixed-split robustness check |
+| M5 P2 cross-network attention | AUPR 0.8142 +/- 0.0053 | `results/m5_ablation_summary.csv` | Legacy three-seed final-scope result; optional fixed-split robustness check |
+| M5 P3 DropEdge | AUPR 0.8064 +/- 0.0061 | `results/m5_ablation_summary.csv` | Legacy three-seed result |
+| M5 P4 GraphMAE | AUPR 0.8002 +/- 0.0075 | `results/m5_ablation_summary.csv` | Legacy three-seed result |
+| M5 P5 Focal Loss + label smoothing | AUPR 0.7608 +/- 0.0045 | `results/m5_ablation_summary.csv` | Legacy three-seed result; interaction explanation remains a hypothesis |
+| Discarded GPS meta-encoder | CUDA OOM, about 189 GiB allocation request | archived local GPS logs | Failed |
+| Discarded RWPE | impractical preprocessing cost at dimension 16 | archived local RWPE logs | Skipped/incomplete |
+| Optional GNNExplainer | tensor-dimension mismatch | archived `gnnexplainer.log` | Failed/unresolved |
 
 ## Legacy M5 Raw Rows
 
 The authoritative compact rows are stored in `results/m5_ablation_summary.csv`.
-The five baseline seeds are 72, 1, 2, 42, and 99. P7, P4, P9, P2, and P0 use
+The five baseline seeds are 72, 1, 2, 42, and 99. P1, P2, P3, P4, and P5 use
 seeds 72, 1, and 2.
 
 `results/m5_statistical_summary.csv` was generated on 2026-06-25 by
@@ -50,11 +50,11 @@ seeds 72, 1, and 2.
 | Experiment | n | Mean AUPR | Std AUPR | Mean AUROC | Delta AUPR | Welch p vs baseline | Paired p on matching seeds |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | baseline_all | 5 | 0.80192 | 0.004996 | 0.91594 | 0.000000 | NA | NA |
-| P0_focal_loss | 3 | 0.76077 | 0.004456 | 0.89047 | -0.041153 | 9.04e-05 | 0.01343 |
-| P9_dropedge | 3 | 0.80640 | 0.006067 | 0.91583 | 0.004480 | 0.34686 | 0.33209 |
-| P7_heterophily | 3 | 0.82403 | 0.004356 | 0.91943 | 0.022113 | 0.00134 | 0.02953 |
-| P2_graphmae | 3 | 0.80017 | 0.007524 | 0.91553 | -0.001753 | 0.74277 | 0.93337 |
-| P4_cross_net_attn | 3 | 0.81417 | 0.005256 | 0.91763 | 0.012247 | 0.02977 | 0.10249 |
+| P1_heterophily | 3 | 0.82403 | 0.004356 | 0.91943 | 0.022113 | 0.00134 | 0.02953 |
+| P2_cross_net_attn | 3 | 0.81417 | 0.005256 | 0.91763 | 0.012247 | 0.02977 | 0.10249 |
+| P3_dropedge | 3 | 0.80640 | 0.006067 | 0.91583 | 0.004480 | 0.34686 | 0.33209 |
+| P4_graphmae | 3 | 0.80017 | 0.007524 | 0.91553 | -0.001753 | 0.74277 | 0.93337 |
+| P5_focal_loss | 3 | 0.76077 | 0.004456 | 0.89047 | -0.041153 | 9.04e-05 | 0.01343 |
 
 ## Requirements for New Results
 

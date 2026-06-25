@@ -43,9 +43,9 @@ echo "============================================================" | tee -a "$M
 
 # ── Batch 1: 4 parallel runs ────────────────────────────────────────────────
 JOBS=(
-    "P4_cross_net_attn|72|--cross_network_attention 1"
-    "P4_cross_net_attn|1|--cross_network_attention 1"
-    "P4_cross_net_attn|2|--cross_network_attention 1"
+    "P2_cross_net_attn|72|--cross_network_attention 1"
+    "P2_cross_net_attn|1|--cross_network_attention 1"
+    "P2_cross_net_attn|2|--cross_network_attention 1"
     "baseline_extra|42|"
 )
 

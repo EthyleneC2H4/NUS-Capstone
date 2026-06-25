@@ -53,17 +53,17 @@ run_job() {
     fi
 }
 
-# ── Batch 1: P4×2 ──────────────────────────────────────────────────────────
-run_job "P4_cross_net_attn" 72 "--cross_network_attention 1" &
+# ── Batch 1: P2×2 ──────────────────────────────────────────────────────────
+run_job "P2_cross_net_attn" 72 "--cross_network_attention 1" &
 PID1=$!
 sleep 3
-run_job "P4_cross_net_attn" 1 "--cross_network_attention 1" &
+run_job "P2_cross_net_attn" 1 "--cross_network_attention 1" &
 PID2=$!
 wait $PID1 $PID2
 echo "[$(timestamp)] BATCH 1 DONE" | tee -a "$MASTER_LOG"
 
-# ── Batch 2: P4 + baseline_extra ────────────────────────────────────────────
-run_job "P4_cross_net_attn" 2 "--cross_network_attention 1" &
+# ── Batch 2: P2 + baseline_extra ────────────────────────────────────────────
+run_job "P2_cross_net_attn" 2 "--cross_network_attention 1" &
 PID1=$!
 sleep 3
 run_job "baseline_extra" 42 "" &

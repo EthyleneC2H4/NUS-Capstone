@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sequential run of remaining experiments (P4 + extra seeds + GNNExplainer)
+# Sequential run of remaining experiments (P2 + extra seeds + GNNExplainer)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -22,9 +22,9 @@ echo "[$(timestamp)] REMAINING EXPERIMENTS (sequential)" | tee "$MLOG"
 echo "  GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader)" | tee -a "$MLOG"
 
 JOBS=(
-    "P4_cross_net_attn|72|--cross_network_attention 1"
-    "P4_cross_net_attn|1|--cross_network_attention 1"
-    "P4_cross_net_attn|2|--cross_network_attention 1"
+    "P2_cross_net_attn|72|--cross_network_attention 1"
+    "P2_cross_net_attn|1|--cross_network_attention 1"
+    "P2_cross_net_attn|2|--cross_network_attention 1"
     "baseline_extra|42|"
     "baseline_extra|99|"
 )

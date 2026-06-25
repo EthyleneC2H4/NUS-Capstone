@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# Resume experiments from P1_pe_dim16 (after the first 15 runs completed)
+# Resume legacy discarded experiments after the first retained M5 runs completed.
 # ============================================================================
 set -euo pipefail
 
@@ -39,15 +39,15 @@ BASE_FLAGS=(
 SEEDS=(72 1 2)
 
 echo "============================================================" | tee "$MASTER_LOG"
-echo "[$(timestamp)] RESUME: Starting from P1_pe_dim16" | tee -a "$MASTER_LOG"
+echo "[$(timestamp)] RESUME: Starting from rwpe_dim16" | tee -a "$MASTER_LOG"
 echo "  GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null)" | tee -a "$MASTER_LOG"
 echo "============================================================" | tee -a "$MASTER_LOG"
 
-# ── Phase 1 (remaining): P1, P3, P4 ─────────────────────────────────────────
+# ── Phase 1 (remaining legacy/discarded + retained P2) ─────────────────────
 REMAINING=(
-    "P1_pe_dim16|--pe_dim 16"
-    "P3_gps_meta|--gps_meta 1 --gps_heads 4"
-    "P4_cross_net_attn|--cross_network_attention 1"
+    "rwpe_dim16|--pe_dim 16"
+    "gps_meta|--gps_meta 1 --gps_heads 4"
+    "P2_cross_net_attn|--cross_network_attention 1"
 )
 
 for entry in "${REMAINING[@]}"; do
