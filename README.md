@@ -19,7 +19,7 @@ Reference: [Chatzianastasis et al., *Bioinformatics* 2023](https://doi.org/10.10
 | M5 Advanced technique ablation | ✅ 5/9 evaluated; P7 heterophily best (+2.8%) |
 | External data modules (P5, P6, P8) | Optional future work |
 | GNNExplainer (P10) | Optional future work |
-| Paper (IMRAD) | ✅ 13 pages, source and PDF versioned in `LaTeX/` |
+| Paper (IMRAD) | Local-only artifact, not versioned in GitHub |
 
 **Best scoped result:** Heterophily-aware gating + 6-network EMGNNImproved: **AUPR=0.8240±0.0044, AUROC=0.9194** over 3 legacy seeds.
 
@@ -99,7 +99,6 @@ NUS-Capstone/
 │   └── experiment_summary.md   # Detailed M1-M4 results
 │
 ├── configs/
-├── COMPLETE_EXPERIMENT_RESULTS.md  # Full experiment report
 └── requirements.txt
 ```
 
@@ -168,8 +167,8 @@ python scripts/smoke_test.py
 python scripts/analyze_m5_results.py
 ```
 
-See [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md) for the fixed-split
-protocol, existing-result summaries, and the CPU homophily script.
+The smoke test and summary script are CPU-only; no GPU or EMOGI HDF5 files are
+required for these checks.
 
 ---
 
@@ -189,13 +188,9 @@ protocol, existing-result summaries, and the CPU homophily script.
 
 ## Documentation
 
-- **Complete experiment results:** [`COMPLETE_EXPERIMENT_RESULTS.md`](COMPLETE_EXPERIMENT_RESULTS.md)
-- **Agent guide (project context):** [`docs/AGENT_GUIDE.md`](docs/AGENT_GUIDE.md) (EN) / [`docs/AGENT_GUIDE_ZH.md`](docs/AGENT_GUIDE_ZH.md) (ZH)
-- **Paper (source and PDF):** [`LaTeX/main.pdf`](LaTeX/main.pdf)
 - **Result provenance:** [`results/RESULT_PROVENANCE.md`](results/RESULT_PROVENANCE.md)
-- **Authoritative project state:** [`PROJECT_STATE.md`](PROJECT_STATE.md)
-- **Reproducibility guide:** [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md)
 - **Experiment summary:** [`results/experiment_summary.md`](results/experiment_summary.md)
+- **M5 statistical summary:** [`results/m5_statistical_summary.csv`](results/m5_statistical_summary.csv)
 
 ---
 

@@ -21,7 +21,13 @@ results/hparam_search.db
 # Run logs
 results/run_all_*.log
 
-# LaTeX generated files (source and PDF are versioned)
+# Local-only paper and project documentation artifacts
+LaTeX/
+docs/
+COMPLETE_EXPERIMENT_RESULTS.md
+PROJECT_STATE.md
+
+# LaTeX generated files
 LaTeX/*.aux
 LaTeX/*.log
 LaTeX/*.out

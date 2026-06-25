@@ -34,8 +34,8 @@
 | M5 P9 DropEdge | AUPR 0.8064 +/- 0.0061 | `results/m5_ablation_summary.csv` | Legacy three-seed result |
 | M5 P2 GraphMAE | AUPR 0.8002 +/- 0.0075 | `results/m5_ablation_summary.csv` | Legacy three-seed result |
 | M5 P0 Focal Loss + label smoothing | AUPR 0.7608 +/- 0.0045 | `results/m5_ablation_summary.csv` | Legacy three-seed result; interaction explanation remains a hypothesis |
-| M5 P3 GPS | CUDA OOM, about 189 GiB allocation request | archived P3 logs; `COMPLETE_EXPERIMENT_RESULTS.md` | Failed |
-| M5 P1 RWPE | impractical preprocessing cost at dimension 16 | archived P1 logs; `COMPLETE_EXPERIMENT_RESULTS.md` | Skipped/incomplete |
+| M5 P3 GPS | CUDA OOM, about 189 GiB allocation request | archived local P3 logs | Failed |
+| M5 P1 RWPE | impractical preprocessing cost at dimension 16 | archived local P1 logs | Skipped/incomplete |
 | P10 GNNExplainer | tensor-dimension mismatch | archived `gnnexplainer.log` | Failed/unresolved |
 
 ## Legacy M5 Raw Rows
