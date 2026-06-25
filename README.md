@@ -1,14 +1,10 @@
 # Cancer Driver Gene Prediction via Heterophily-Aware Graph Neural Networks
 
-**NUS Capstone Project** — Final-year undergraduate thesis  
-**Author:** Yixi Wang (c2h4wang@u.nus.edu)  
-**Supervisor:** Department of Computer Science, School of Computing, NUS
-
 Reference: [Chatzianastasis et al., *Bioinformatics* 2023](https://doi.org/10.1093/bioinformatics/btad643)
 
 ---
 
-## Quick Status (June 2026)
+## Quick Status
 
 | Item | Status |
 |------|--------|
@@ -45,7 +41,7 @@ Identifying cancer driver genes from the vast background of passenger mutations 
 
 ---
 
-## M5 Ablation Results (RTX 5090, June 2026)
+## M5 Ablation Results
 
 | Technique | Mean AUPR ↑ | ± std | Δ AUPR | Verdict |
 |-----------|------------|-------|--------|---------|
