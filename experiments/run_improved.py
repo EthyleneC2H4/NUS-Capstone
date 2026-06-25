@@ -8,8 +8,8 @@ Improvements over benchmark:
   --sage             : use GraphSAGE backbone
   --lr_scheduler     : 'cosine' | 'step' | 'none' (default: cosine)
   --label_smoothing  : label smoothing epsilon (default: 0.05)
-  --normalize        : 'standard' | 'minmax' | 'none' (default: standard)
-  --feature_select   : drop near-zero-variance features (default: True)
+  --normalize        : 'standard' | 'minmax' | 'none' (default: none; opt-in)
+  --feature_select   : drop near-zero-variance features (default: False; opt-in)
   --cross_network_attention : gene-level attention across networks (default: False)
 
 Usage
@@ -27,12 +27,18 @@ Usage
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import pickle
+import platform
+import random
+import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
 import torch
 
 # ── repo root on path ─────────────────────────────────────────────────────────
@@ -105,9 +111,9 @@ def parse_args():
                    choices=['none', 'cosine', 'step'])
 
     # Feature engineering
-    p.add_argument('--normalize',       type=str,  default='standard',
+    p.add_argument('--normalize',       type=str,  default='none',
                    choices=['standard', 'minmax', 'none'])
-    p.add_argument('--feature_select',  default=True,
+    p.add_argument('--feature_select',  default=False,
                    type=lambda x: x in ('1','True','true'))
     p.add_argument('--add_structural_noise', type=float, default=0.0)
     p.add_argument('--pe_dim', type=int, default=0,
@@ -131,6 +137,10 @@ def parse_args():
 
     # Misc
     p.add_argument('--seed',    type=int,  default=72)
+    p.add_argument('--split_seed', type=int, default=72,
+                   help='Fixed seed for train/validation splitting; independent of model seed')
+    p.add_argument('--split_file', type=str, default=None,
+                   help='Reuse an exact split_manifest.json from a previous run')
     p.add_argument('--no_cuda', action='store_true', default=False)
 
     args = p.parse_args()
@@ -144,7 +154,14 @@ def parse_args():
 
 def main():
     args = parse_args()
+    random.seed(args.seed)
+    np.random.seed(args.seed)
     torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.use_deterministic_algorithms(True, warn_only=True)
     if args.cuda:
         if torch.cuda.is_available():
             device = 'cuda'
@@ -173,16 +190,17 @@ def main():
             normalize=args.normalize if args.normalize != 'none' else None,
             feature_selection=args.feature_select,
         )
-        # Note: fe is applied inside loader per-graph; fit on first graph
-        # For simplicity we pass an unfitted FE; loader will call transform only.
-        # In production: pre-fit on training nodes of one reference graph.
+        print('Feature engineering explicitly enabled; fitting on first-network training nodes.')
 
     # ── Load data ─────────────────────────────────────────────────────────────
     print("Loading multi-network data …")
     loader, info = load_multi_network_data(
         args.dataset,
         add_structural_noise=args.add_structural_noise,
+        feature_engineer=fe,
         pe_dim=getattr(args, 'pe_dim', 0),
+        split_seed=args.split_seed,
+        split_file=args.split_file,
     )
     batch = info['batch']
     nfeat = batch.x.shape[1]
@@ -310,6 +328,41 @@ def main():
     ])
     with open(f'{model_dir}/final_y.pkl', 'wb') as fh:
         pickle.dump(final_y, fh)
+
+    # Human-readable split and run provenance for exact reproduction.
+    with open(f'{model_dir}/split_manifest.json', 'w', encoding='utf-8') as fh:
+        json.dump(info['split_manifest'], fh, indent=2)
+
+    def command_output(command):
+        try:
+            return subprocess.check_output(
+                command, cwd=ROOT, text=True, stderr=subprocess.DEVNULL
+            ).strip()
+        except (OSError, subprocess.CalledProcessError):
+            return None
+
+    metadata = {
+        'format_version': 1,
+        'created_at_utc': datetime.now(timezone.utc).isoformat(),
+        'command': [sys.executable, *sys.argv],
+        'arguments': vars(args),
+        'git_commit': command_output(['git', 'rev-parse', 'HEAD']),
+        'git_dirty': bool(command_output(['git', 'status', '--porcelain'])),
+        'python_version': platform.python_version(),
+        'platform': platform.platform(),
+        'torch_version': torch.__version__,
+        'cuda_version': torch.version.cuda,
+        'device': device,
+        'model_parameters': n_params,
+        'test_metrics': test_metrics,
+        'split_counts': {
+            'train': int(info['idx_train'].numel()),
+            'validation': int(info['idx_val'].numel()),
+            'test': int(info['idx_test'].numel()),
+        },
+    }
+    with open(f'{model_dir}/experiment_metadata.json', 'w', encoding='utf-8') as fh:
+        json.dump(metadata, fh, indent=2, default=str)
 
     # Append to global results
     os.makedirs('./results', exist_ok=True)

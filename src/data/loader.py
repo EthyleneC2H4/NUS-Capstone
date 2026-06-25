@@ -8,13 +8,14 @@ Data loading utilities that wrap the original gcnIO functions and add:
 
 from __future__ import annotations
 
-import itertools
+import json
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
-from torch_geometric.data import Data, DataLoader
+from torch_geometric.data import Data
+from torch_geometric.loader import DataLoader
 from torch_geometric.transforms import AddRandomWalkPE
 
 # Re-use benchmark I/O
@@ -58,6 +59,9 @@ def load_multi_network_data(
     add_structural_noise: float = 0.0,
     feature_engineer=None,
     pe_dim: int = 0,
+    split_seed: int = 72,
+    split_file: Optional[str] = None,
+    val_fraction: float = 0.1,
 ) -> Tuple[DataLoader, dict]:
     """
     Load and prepare multi-network data for EMGNN training.
@@ -69,7 +73,18 @@ def load_multi_network_data(
     add_structural_noise : float
         Probability of dropping each edge (0 = no noise).
     feature_engineer : FeatureEngineer | None
-        Optional fitted FeatureEngineer to transform node features.
+        Optional FeatureEngineer. It is fitted on training nodes from the
+        first network, then applied unchanged to every network.
+    split_seed : int
+        Seed used only for the meta-node train/validation split. Keeping this
+        separate from the model seed ensures paired experiments use the same
+        data split.
+    split_file : str | None
+        Optional JSON split file previously emitted by this loader. When
+        provided, the exact saved train/validation/test gene keys are reused.
+    val_fraction : float
+        Fraction of eligible training genes assigned to validation when a
+        saved split is not supplied.
 
     Returns
     -------
@@ -92,9 +107,8 @@ def load_multi_network_data(
     y_list = []
 
     MAX_NODES = 100_000
-    feat_dim = len(FEATURES_ORDER)  # 64 (meta nodes use raw features, no PE)
     meta_y = torch.zeros(MAX_NODES, 1)
-    meta_x_raw = torch.zeros(MAX_NODES, feat_dim)
+    meta_x_raw = None
 
     for path in paths:
         (adj, features, y_train, y_val, y_test,
@@ -109,7 +123,13 @@ def load_multi_network_data(
 
         # ── Optional feature engineering ───────────────────────────────────
         if feature_engineer is not None:
+            if not feature_engineer.fitted:
+                fit_mask = np.asarray(train_mask, dtype=bool)
+                feature_engineer.fit(features[fit_mask])
             features = feature_engineer.transform(features)
+
+        if meta_x_raw is None:
+            meta_x_raw = torch.zeros(MAX_NODES, features.shape[1])
 
         # ── Build node2idx ─────────────────────────────────────────────────
         for node in node_names:
@@ -174,25 +194,74 @@ def load_multi_network_data(
         data_list.append(data)
 
     n_unique = len(node2idx)
+    if meta_x_raw is None:
+        raise RuntimeError('No PPI networks were loaded.')
     meta_x = meta_x_raw[:n_unique]
-    meta_y = torch.tensor(meta_y[:n_unique]).type(torch.LongTensor).squeeze()
+    meta_y = meta_y[:n_unique].long().squeeze()
 
     # ── Build global train / val / test sets on meta-nodes ─────────────────
     train_set = {tuple(n) for lst in train_nodes_list for n in lst}
     val_set   = {tuple(n) for lst in val_nodes_list   for n in lst}
     test_set  = {tuple(n) for n in test_nodes_list[-1]}   # last graph only
 
-    # Take first 10 % of train as val (mirror benchmark)
-    val_set_sub = set(itertools.islice(train_set, int(len(train_set) * 0.1)))
-    val_set = val_set_sub
+    def normalise_key(key):
+        return tuple(
+            value.decode('utf-8') if isinstance(value, bytes) else str(value)
+            for value in key
+        )
 
-    train_set -= test_set
-    val_set   -= test_set
-    train_set -= val_set
+    key_lookup = {normalise_key(key): key for key in node2idx}
 
-    idx_train_meta = torch.tensor([node2idx[n] for n in train_set])
-    idx_val_meta   = torch.tensor([node2idx[n] for n in val_set])
-    idx_test_meta  = torch.tensor([node2idx[n] for n in test_set])
+    if split_file is not None:
+        with open(split_file, encoding='utf-8') as fh:
+            saved_split = json.load(fh)
+
+        def restore_keys(name):
+            restored = []
+            for raw_key in saved_split[name]:
+                key = key_lookup.get(tuple(raw_key))
+                if key is None:
+                    raise ValueError(
+                        f'Saved {name} gene key is absent from loaded data: {raw_key}'
+                    )
+                restored.append(key)
+            return restored
+
+        train_keys = restore_keys('train')
+        val_keys = restore_keys('validation')
+        test_keys = restore_keys('test')
+    else:
+        eligible_train = sorted(
+            train_set - test_set,
+            key=normalise_key,
+        )
+        rng = np.random.default_rng(split_seed)
+        permutation = rng.permutation(len(eligible_train))
+        val_count = int(len(eligible_train) * val_fraction)
+        val_positions = set(permutation[:val_count].tolist())
+        val_keys = [key for i, key in enumerate(eligible_train)
+                    if i in val_positions]
+        train_keys = [key for i, key in enumerate(eligible_train)
+                      if i not in val_positions]
+        test_keys = sorted(test_set, key=normalise_key)
+
+    idx_train_meta = torch.tensor(
+        [node2idx[n] for n in train_keys], dtype=torch.long)
+    idx_val_meta = torch.tensor(
+        [node2idx[n] for n in val_keys], dtype=torch.long)
+    idx_test_meta = torch.tensor(
+        [node2idx[n] for n in test_keys], dtype=torch.long)
+
+    split_manifest = {
+        'format_version': 1,
+        'dataset_names': list(dataset_names),
+        'split_seed': split_seed,
+        'val_fraction': val_fraction,
+        'source_split_file': split_file,
+        'train': [list(normalise_key(key)) for key in train_keys],
+        'validation': [list(normalise_key(key)) for key in val_keys],
+        'test': [list(normalise_key(key)) for key in test_keys],
+    }
 
     # ── Batch all graphs ───────────────────────────────────────────────────
     loader = DataLoader(data_list, batch_size=len(data_list))
@@ -222,5 +291,6 @@ def load_multi_network_data(
         all_node_names=all_node_names,
         batch=batch,
         dataset_names=dataset_names,
+        split_manifest=split_manifest,
     )
     return loader, info

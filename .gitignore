@@ -21,10 +21,7 @@ results/hparam_search.db
 # Run logs
 results/run_all_*.log
 
-# LaTeX source files (only PDF is committed)
-LaTeX/*.tex
-LaTeX/sections/
-LaTeX/preamble.tex
+# LaTeX generated files (source and PDF are versioned)
 LaTeX/*.aux
 LaTeX/*.log
 LaTeX/*.out

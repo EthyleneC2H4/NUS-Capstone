@@ -23,8 +23,8 @@ training:
   lr_scheduler: cosine       # cosine | step | none
 
 feature_engineering:
-  normalize: standard        # standard | minmax | none
-  feature_selection: true    # drop near-zero-variance features
+  normalize: none            # standard | minmax | none; explicit opt-in
+  feature_selection: false   # explicit opt-in; fit on training nodes only
   use_pca: false
   pca_components: null
 

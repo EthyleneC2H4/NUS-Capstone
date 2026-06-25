@@ -1,0 +1,90 @@
+% ── sections/02_related_work.tex ──────────────────────────────────────────────
+
+\section{Related Work}
+
+\subsection{GNN-Based Cancer Driver Gene Prediction}
+
+Identifying cancer driver genes computationally has been approached through
+network-based and machine learning methods. Early work used network propagation
+algorithms that diffused mutation signals across PPI networks, but these lacked
+the capacity to integrate multiple omics data types. The introduction of graph
+neural networks to this domain marked a significant advance.
+
+EMOGI \cite{emogi2021} pioneered the integration of multi-omics node features
+with PPI network topology using graph convolutional networks (GCNs),
+demonstrating that GCN-based propagation over a single PPI graph substantially
+outperforms feature-only baselines. The model encodes each gene as a node with
+multi-omics features (mutation frequency, DNA methylation, gene expression, and
+copy-number alteration) and learns to classify genes through neighbourhood
+aggregation. EMGNN \cite{emgnn2023} extended this to a multilayer framework:
+separate GNN encoders independently process each of multiple PPI networks, and a
+meta-graph---whose nodes represent unique genes aggregated across networks---enables
+cross-network evidence integration. Both methods employ Integrated Gradients for
+feature-level interpretability, attributing predictions to individual omics
+features.
+
+Recent work has addressed specific limitations. SGCD \cite{sgcd2024} made the
+important observation that PPI-based cancer driver prediction can be affected by
+heterophily, with neighbours of cancer drivers often being non-cancer genes.
+This finding motivates heterophily-aware architectures, as standard GNNs
+implicitly assume homophily and may dilute cancer signals through neighbourhood
+aggregation. DISHyper \cite{dishyper2024} incorporated Gene Ontology and disease
+phenotype annotations as hypergraph structures, showing that functional knowledge
+complements PPI topology. DGHNN \cite{dghnn2025} combined graph and hypergraph
+encoders with a Feature Tokenizer Transformer and reported strong results on
+EMOGI benchmark datasets. deepCDG \cite{deepcdg2025} introduced
+weight-sharing across GCN layers with cross-omics attention for multi-omics
+integration.
+
+\subsection{Architectural Advances in Graph Learning}
+
+Several general-purpose GNN innovations are relevant to our extensions. GPS
+\cite{gps2022} combines local message passing with global multi-head
+self-attention, overcoming the limited receptive field of standard GCNs.
+GraphMAE \cite{graphmae2022} provides self-supervised pretraining via masked
+feature reconstruction, exploiting unlabelled graph structure. Focal Loss
+\cite{focal2017} and DropEdge \cite{dropedge2020} address class imbalance and
+over-smoothing respectively---both common challenges in node classification.
+PINNACLE \cite{pinnacle2024} provides pretrained protein embeddings from
+multi-tissue PPI networks, while HIPGNN \cite{hipgnn2025} reframes anomaly
+detection on graphs using spectral and spatial views. Hypergraph neural networks
+\cite{hgnn2019} enable higher-order relationship modelling beyond pairwise edges,
+relevant for pathway-level gene set encoding.
+
+\subsection{Positioning of This Work}
+
+Unlike prior single-contribution studies, our work provides a systematic pipeline
+from reproduction through optimisation to interpretation. Key distinguishing
+aspects include: (1) explicit gain decomposition separating data effects from
+architectural effects; (2) systematic ablation of nine advanced GNN techniques
+under a unified experimental protocol; (3) the finding that heterophily-aware
+gating---rather than loss-function modifications or pretraining---provides the
+largest single improvement. Table \ref{tab:relwork} positions our work against
+the most relevant methods.
+
+\begin{table}[ht]
+  \centering
+  \caption{Comparison of GNN-based cancer driver gene prediction methods.
+           Multi-net: supports multiple PPI networks. Interp.: interpretability
+           analysis. Hyper.: hypergraph encoding. AUPR values on CPDB test set
+           where available; dashes indicate non-comparable protocols.}
+  \label{tab:relwork}
+  \small
+  \begin{tabular}{lccccc}
+    \toprule
+    \textbf{Method} & \textbf{Year} & \textbf{Multi-net} & \textbf{Interp.} & \textbf{Hyper.} & \textbf{AUPR $\uparrow$} \\
+    \midrule
+    EMOGI \cite{emogi2021}      & 2021 & \texttimes & IG        & \texttimes & 0.73$^*$ \\
+    EMGNN \cite{emgnn2023}      & 2023 & \checkmark & IG        & \texttimes & 0.809$^\dagger$ \\
+    SGCD \cite{sgcd2024}        & 2025 & \texttimes & \texttimes & \texttimes & --- \\
+    DISHyper \cite{dishyper2024} & 2024 & \texttimes & \texttimes & \checkmark & --- \\
+    deepCDG \cite{deepcdg2025}  & 2025 & \texttimes & \texttimes & \texttimes & --- \\
+    DGHNN \cite{dghnn2025}      & 2025 & \texttimes & \texttimes & \checkmark & --- \\
+    \textbf{This work}          & 2026 & \checkmark & IG+GSEA   & \checkmark$^\ddagger$ & \textbf{0.824} \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.3em}
+  {\footnotesize $^*$Reported on CPDB. $^\dagger$Reported mean over 5 runs.
+  $^\ddagger$Implemented, pending external data for evaluation.}
+\end{table}

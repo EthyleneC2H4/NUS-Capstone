@@ -17,12 +17,11 @@ Reference: [Chatzianastasis et al., *Bioinformatics* 2023](https://doi.org/10.10
 | M3 Multi-network extension | ✅ 6-net AUPR=0.8067, gain decomposition |
 | M4 Interpretability (IG + GSEA) | ✅ 28 Hallmark pathways (FDR<0.05) |
 | M5 Advanced technique ablation | ✅ 5/9 evaluated; P7 heterophily best (+2.8%) |
-| External data modules (P5, P6, P8) | ⏳ Pending dataset download |
-| GNNExplainer (P10) | ⏳ Code fixed, not yet tested on server |
-| Paper (IMRAD) | ✅ 13 pages, Times New Roman, 33 refs |
-| Paper (Nature-style) | ✅ Archived in `../LaTeX/` |
+| External data modules (P5, P6, P8) | Optional future work |
+| GNNExplainer (P10) | Optional future work |
+| Paper (IMRAD) | ✅ 13 pages, source and PDF versioned in `LaTeX/` |
 
-**Best result:** Heterophily-aware gating + 6-network EMGNNImproved: **AUPR=0.8240±0.0044, AUROC=0.9194**
+**Best scoped result:** Heterophily-aware gating + 6-network EMGNNImproved: **AUPR=0.8240±0.0044, AUROC=0.9194** over 3 legacy seeds.
 
 ---
 
@@ -30,7 +29,7 @@ Reference: [Chatzianastasis et al., *Bioinformatics* 2023](https://doi.org/10.10
 
 Identifying cancer driver genes from the vast background of passenger mutations is a central challenge in computational oncology. This project extends the Explainable Multilayer Graph Neural Network (EMGNN) framework to predict cancer driver genes by integrating six protein–protein interaction (PPI) networks with 64-dimensional pan-cancer multi-omics features.
 
-**Core technical insight:** PPI networks exhibit significant heterophily for cancer genes — neighbours of drivers are predominantly non-drivers. A learned gate fusing low-pass and high-pass filtered signals effectively exploits this structure without architectural redesign.
+**Core technical insight:** Prior work suggests that PPI-based cancer driver prediction is affected by heterophily, where neighbours of drivers are often non-drivers. The completed ablation results show that a learned gate fusing low-pass and high-pass filtered signals improves the six-network baseline without architectural redesign.
 
 ---
 
@@ -57,7 +56,7 @@ Identifying cancer driver genes from the vast background of passenger mutations 
 | GraphMAE pretraining (P2) | 0.8002 | 0.0075 | −0.2% | Neutral |
 | Focal Loss γ=2 (P0) | 0.7608 | 0.0045 | −5.1% | ❌ Harmful |
 
-**Pending techniques:** Pathway hypergraph (needs MSigDB GMT), HIPGNN (needs eigenvectors), PINNACLE embeddings (needs .npz), GNNExplainer (bug fixed, untested).
+**Out-of-scope extensions:** Pathway hypergraph, HIPGNN, PINNACLE embeddings, and GNNExplainer are retained in the codebase as optional future work and are not part of the final required experiment scope.
 
 ---
 
@@ -161,17 +160,28 @@ python experiments/run_attribution.py --model_dir results/my_models/<dir>
 python experiments/run_gsea.py --model_dir results/my_models/<dir> --mode enrichr --top_n 200
 ```
 
+### CPU-Only Reproducibility Checks
+
+```bash
+python -m unittest discover -s tests
+python scripts/smoke_test.py
+python scripts/analyze_m5_results.py
+```
+
+See [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md) for the fixed-split
+protocol, existing-result summaries, and the CPU homophily script.
+
 ---
 
 ## Key Findings
 
-1. **Heterophily-aware gating is the most effective single improvement** (+2.8%, p<0.01). PPI networks exhibit significant heterophily: neighbours of cancer drivers are predominantly non-drivers.
+1. **Heterophily-aware gating is the most effective single improvement** (+2.8%, p<0.01). The result is consistent with prior evidence that PPI-based cancer driver prediction is affected by heterophily.
 
 2. **Multi-network data trumps architectural complexity.** The +5.9% gain decomposes into +5.4% (data) +1.0% (architecture). Adding more PPI databases is more impactful than model changes.
 
 3. **BatchNorm is harmful in full-batch graph learning** (−4.2%). In full-batch training, running statistics provide no regularisation benefit.
 
-4. **Focal Loss degrades performance** (−5.1%). Label smoothing (ε=0.05) already provides sufficient calibration; their combination over-penalises the minority class.
+4. **Focal Loss degrades performance** (−5.1%). A plausible explanation is that label smoothing (ε=0.05) already provides calibration and the additional γ modulation over-penalises the minority class; this mechanism was not separately validated by a 2x2 interaction ablation.
 
 5. **GraphMAE pretraining is neutral** (−0.2%). The 64-dimensional multi-omics features are already sufficiently informative for supervised learning.
 
@@ -180,9 +190,11 @@ python experiments/run_gsea.py --model_dir results/my_models/<dir> --mode enrich
 ## Documentation
 
 - **Complete experiment results:** [`COMPLETE_EXPERIMENT_RESULTS.md`](COMPLETE_EXPERIMENT_RESULTS.md)
-- **Agent guide (project context):** [`../AGENT_GUIDE.md`](../AGENT_GUIDE.md) (EN) / [`../AGENT_GUIDE_ZH.md`](../AGENT_GUIDE_ZH.md) (ZH)
-- **Paper (IMRAD, 13pp):** [`../LaTeX_nature/main.pdf`](../LaTeX_nature/main.pdf)
-- **Paper (original, 17pp):** [`../LaTeX/main.pdf`](../LaTeX/main.pdf)
+- **Agent guide (project context):** [`docs/AGENT_GUIDE.md`](docs/AGENT_GUIDE.md) (EN) / [`docs/AGENT_GUIDE_ZH.md`](docs/AGENT_GUIDE_ZH.md) (ZH)
+- **Paper (source and PDF):** [`LaTeX/main.pdf`](LaTeX/main.pdf)
+- **Result provenance:** [`results/RESULT_PROVENANCE.md`](results/RESULT_PROVENANCE.md)
+- **Authoritative project state:** [`PROJECT_STATE.md`](PROJECT_STATE.md)
+- **Reproducibility guide:** [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md)
 - **Experiment summary:** [`results/experiment_summary.md`](results/experiment_summary.md)
 
 ---
