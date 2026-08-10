@@ -56,7 +56,7 @@ Identifying cancer driver genes from the vast background of passenger mutations 
 ## Repository Structure
 
 ```
-NUS-Capstone/
+HeteroDriverGNN/
 ├── benchmark/                  # Original EMGNN reference code (M1)
 ├── src/
 │   ├── models/
