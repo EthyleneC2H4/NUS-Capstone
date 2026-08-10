@@ -1,197 +1,163 @@
-# Cancer Driver Gene Prediction via Heterophily-Aware Graph Neural Networks
+[![made-with-python](https://img.shields.io/badge/Made%20with-Python-red.svg)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.2-orange.svg)](#)
 
-Reference: [Chatzianastasis et al., *Bioinformatics* 2023](https://doi.org/10.1093/bioinformatics/btad643)
+# HeteroDriverGNN
 
----
+**Heterophily-Aware Multilayer Graph Neural Network for Cancer Driver Gene Prioritization**
 
-## Quick Status
+<strong>Manuscript</strong>: submitted to *IEEE/ACM Transactions on Computational Biology and Bioinformatics*
 
-| Item | Status |
-|------|--------|
-| M1 Benchmark reproduction | ✅ 6 networks × 3 backbones, 36+ runs |
-| M2 Ablation + Optuna | ✅ BatchNorm harmful (−4.2%), 50 trials |
-| M3 Multi-network extension | ✅ 6-net AUPR=0.8067, gain decomposition |
-| M4 Interpretability (IG + GSEA) | ✅ 28 Hallmark pathways (FDR<0.05) |
-| M5 Advanced technique ablation | ✅ 5 retained techniques evaluated; P1 heterophily best (+2.8%) |
+Identifying cancer driver genes from the vast background of passenger mutations is a central challenge in computational oncology. Existing computational methods, including deep graph neural networks, usually learn on a single biological network, which cannot capture the full complexity of tumorigenesis, and models trained on different networks often yield conflicting predictions. Here, we extend the <strong>Explainable Multilayer Graph Neural Network (EMGNN)</strong> framework with a <strong>feature-wise gate</strong> that fuses a graph-smoothed branch with a residual-difference branch at every layer, explicitly accounting for heterophily in protein--protein interaction (PPI) networks. The model integrates six PPI networks and 64-dimensional pan-cancer multi-omics features (mutation, expression, methylation, copy number across 16 TCGA cancer types) for cancer driver gene prioritization.
 
-**Best scoped result:** Heterophily-aware gating + 6-network EMGNNImproved: **AUPR=0.8240±0.0044, AUROC=0.9194** over 3 legacy seeds.
+Across three matched-seed legacy runs, the gated model reached a mean test AUPR of <strong>0.8240 ± 0.0044</strong> (paired difference +0.0243 vs. the matched baseline; paired *p* = 0.0295), the largest observed improvement among five evaluated extensions. A post-hoc label-mixing analysis shows that the six PPI networks exhibit mixed rather than uniformly homophilic geometry, and Integrated Gradients plus Hallmark enrichment provide a prioritization workflow for the 15,157 checkpoint-unindexed candidate genes. The work is described in full in the accompanying manuscript; this repository contains the complete implementation and analysis scripts.
 
----
+![HeteroDriverGNN architecture](architecture.png)
 
-## Project Overview
+## Main Results
 
-Identifying cancer driver genes from the vast background of passenger mutations is a central challenge in computational oncology. This project extends the Explainable Multilayer Graph Neural Network (EMGNN) framework to predict cancer driver genes by integrating six protein–protein interaction (PPI) networks with 64-dimensional pan-cancer multi-omics features.
+| Configuration | Test AUPR (mean ± SD) | Test AUROC | Paired Δ AUPR vs. baseline |
+|---|---|---|---|
+| Baseline (three matched seeds) | 0.7997 ± 0.0044 | 0.9155 ± 0.0014 | — |
+| **Feature-wise gate (heterophily-aware)** | **0.8240 ± 0.0044** | **0.9194 ± 0.0010** | **+0.0243** |
+| Cross-network attention | 0.8142 ± 0.0053 | 0.9176 ± 0.0028 | +0.0144 |
+| DropEdge (rate 0.1) | 0.8064 ± 0.0061 | 0.9158 ± 0.0015 | +0.0067 |
+| GraphMAE pretraining (200 epochs) | 0.8002 ± 0.0075 | 0.9155 ± 0.0030 | +0.0004 |
+| Focal loss (γ = 2, α = 0.75) | 0.7608 ± 0.0045 | 0.8905 ± 0.0029 | −0.0390 |
 
-**Core technical insight:** Prior work suggests that PPI-based cancer driver prediction is affected by heterophily, where neighbours of drivers are often non-drivers. The completed ablation results show that a learned gate fusing low-pass and high-pass filtered signals improves the six-network baseline without architectural redesign.
+*Values are means ± sample standard deviations across three seed-aligned legacy runs (seeds 72, 1, 2). Mean differences are descriptive contrasts against the three-run baseline mean; the archived runs predate deterministic split manifests, so no paired inferential claim is made.*
 
----
+Key results reported in the manuscript:
 
-## Five Methodologies
+1. **The feature-wise gate is the most effective single extension** (+0.0243 AUPR, observed in all three matched seeds). The gate adds 24,768 parameters (98.7% increase) and combines graph-smoothed and residual-difference branches at all three layers.
+2. **Multi-network integration is valuable.** Six-network configurations markedly improve over the CPDB-only baseline, but historical protocols differ across rows, so the gains are reported as a project trajectory rather than a controlled ablation.
+3. **BatchNorm hurts full-batch graph learning** (−0.042 AUPR in one CPDB configuration). In full-batch training, running statistics provide no regularisation benefit.
+4. **The PPI benchmark has mixed label geometry.** Prevalence-adjusted homophily is positive for CPDB, IRefIndex-2015, and STRING but negative for IRefIndex, Multinet, and PCNet — motivating adaptive retention of both smoothed and residual signals.
+5. **Post-hoc interpretation.** Integrated Gradients across three checkpoint-specific 20-gene cohorts highlights GE:BRCA, GE:LIHC, and CNA:LUAD; Hallmark over-representation finds 23 of 50 gene sets enriched (q < 0.05) among the top-200 checkpoint-unindexed candidates.
 
-| # | Methodology | Key Result | Status |
-|---|------------|------------|--------|
-| M1 | Benchmark reproduction | GCN mean AUPR=0.743 (18 runs), relative ranking GCN>GIN>GAT reproduced | ✅ |
-| M2 | Ablation + Optuna | **BatchNorm harmful in full-batch GNN** (−4.2% AUPR); Optuna best=0.8023 (seed-dependent) | ✅ |
-| M3 | Multi-network extension | 6-net AUPR=**0.8067** (+5.9%); gain: data +5.4%, architecture +1.0% | ✅ |
-| M4 | Interpretability | IG: methylation dominates; GSEA: 28 Hallmark significant (EMT FDR=1.6×10⁻³³) | ✅ |
-| M5 | Advanced technique ablation | 5 retained techniques evaluated; **P1 heterophily best** (+2.8%, p<0.01) | ✅ |
+## Requirements
 
----
+- Python 3.10
+- PyTorch 2.2 + PyTorch Geometric
+- captum (Integrated Gradients)
+- gseapy (ORA / preranked GSEA)
+- optuna (hyperparameter search)
+- h5py, pandas, numpy, scikit-learn
 
-## M5 Ablation Results
+A pinned environment is provided in [`environment.yml`](environment.yml) and [`requirements.txt`](requirements.txt).
 
-| Technique | Mean AUPR ↑ | ± std | Δ AUPR | Verdict |
-|-----------|------------|-------|--------|---------|
-| Baseline (6-net, 5 seeds) | 0.8019 | 0.0050 | — | Robust baseline |
-| **Heterophily-aware gating (P1)** | **0.8240** | **0.0044** | **+2.8%** | 🏆 Best (p<0.01) |
-| Cross-Network Attention (P2) | 0.8142 | 0.0053 | +1.5% | 🥈 Stable gain |
-| DropEdge p=0.1 (P3) | 0.8064 | 0.0061 | +0.6% | 🥉 Marginal |
-| GraphMAE pretraining (P4) | 0.8002 | 0.0075 | −0.2% | Neutral |
-| Focal Loss γ=2 (P5) | 0.7608 | 0.0045 | −5.1% | ❌ Harmful |
+## How to Run
 
-**Out-of-scope extensions:** Pathway hypergraph, HIPGNN, PINNACLE embeddings, and GNNExplainer are retained in the codebase as optional future work and are not part of the final required experiment scope.
+### Data Preparation
 
----
+We use the same processed EMOGI/EMGNN benchmark data as the reference implementation: six PPI networks (ConsensusPathDB, IRefIndex, IRefIndex-2015, Multinet, PCNet, STRING) with 64-dimensional pan-cancer multi-omics features. Follow the instruction in the original [EMOGI repository](https://github.com/schulter/EMOGI) (Zenodo record 3707301) to download the HDF5 files, then place them under `results/EMOGI_*/`.
+
+### Training
+
+Train the six-network baseline with the project's best configuration (no BatchNorm, residual connections, cosine LR scheduling, label smoothing):
+
+    python experiments/run_improved.py --gcn 1 \
+        --dataset IREF_2015 IREF STRING PCNET MULTINET CPDB \
+        --norm_type none --use_residual True --use_net_weights True \
+        --lr_scheduler cosine --label_smoothing 0.05
+
+The last dataset in the list is used as the held-out label network (here CPDB). To enable the heterophily-aware gate, the main architectural extension:
+
+    python experiments/run_improved.py --gcn 1 \
+        --dataset IREF_2015 IREF STRING PCNET MULTINET CPDB \
+        --norm_type none --use_residual True --use_net_weights True \
+        --lr_scheduler cosine --label_smoothing 0.05 \
+        --heterophily_aware 1
+
+Other evaluated extensions can be enabled one at a time: `--cross_network_attention 1`, `--drop_edge_rate 0.1`, `--pretrain_graphmae 1 --pretrain_epochs 200`, or `--focal_gamma 2.0 --focal_alpha 0.75`. To reproduce the full five-extension × three-seed ablation, run:
+
+    bash experiments/run_m5_ablation.sh
+
+### Explaining Predictions
+
+Feature attribution with Integrated Gradients (Captum), targeting held-out positive genes:
+
+    python experiments/run_attribution.py \
+        --model-dir results/my_models/<run_dir> \
+        --cohort test_positive
+
+Gene-set enrichment on the top-200 ranked candidate genes (Enrichr ORA or local preranked GSEA):
+
+    python experiments/run_gsea.py \
+        --model_dir results/my_models/<run_dir> \
+        --mode enrichr --top_n 200
+
+    python experiments/run_gsea.py \
+        --model_dir results/my_models/<run_dir> \
+        --mode preranked
+
+### Candidate Ranking
+
+Rank genes absent from the recovered checkpoint indices (15,157 checkpoint-unindexed candidates) by mean driver-class score across the saved checkpoints:
+
+    python scripts/rank_unlabelled_candidates.py \
+        --model-dirs results/my_models/<run_dir_1> results/my_models/<run_dir_2> results/my_models/<run_dir_3> \
+        --top-n 200
+
+### CPU-Only Reproducibility Checks
+
+The following are CPU-only and require no GPU or EMOGI HDF5 files:
+
+    python -m unittest discover -s tests
+    python scripts/smoke_test.py
 
 ## Repository Structure
 
 ```
 HeteroDriverGNN/
-├── benchmark/                  # Original EMGNN reference code (M1)
+├── benchmark/                  # Original EMGNN reference code (reproduction)
 ├── src/
 │   ├── models/
-│   │   ├── emgnn_improved.py   # ★ Core model (M2/M3/M5 retained techniques)
+│   │   ├── emgnn_improved.py   # ★ Core model (gate + extensions)
 │   │   ├── hypergnn.py         # Optional pathway hypergraph encoder
 │   │   ├── hipgnn.py           # Optional anomaly detection head
-│   │   └── baselines.py        # GCN/MLP baselines
+│   │   └── baselines.py        # GCN / MLP baselines
 │   ├── data/
 │   │   ├── loader.py           # Multi-network HDF5 loader + sparse cache
-│   │   ├── feature_engineering.py
-│   │   ├── build_hypergraph.py # GMT → hypergraph incidence
-│   │   └── pinnacle_embeddings.py
+│   │   └── feature_engineering.py
 │   ├── training/
-│   │   ├── trainer.py          # Trainer: LR sched, early stop, grad clip
-│   │   ├── hparam_search.py    # Optuna Bayesian search (M2)
-│   │   └── pretrain_graphmae.py
+│   │   ├── trainer.py          # LR scheduling, early stopping, grad clipping
+│   │   └── hparam_search.py    # Optuna Bayesian search
 │   └── explainability/
 │       ├── attribution.py      # Integrated Gradients (Captum)
-│       └── gsea.py             # Enrichr ORA + preranked + Hallmark
-│
+│       └── gsea.py             # ORA + preranked GSEA + Hallmark
 ├── experiments/
-│   ├── run_improved.py         # ★ Main training script (40+ CLI args)
+│   ├── run_improved.py         # ★ Main training script
 │   ├── run_benchmark.py        # Original EMGNN runner
 │   ├── run_hparam_search.py    # Optuna driver
-│   ├── run_attribution.py      # Feature attribution
-│   ├── run_gsea.py             # Gene set enrichment
-│   ├── run_gnn_explain.py      # Optional GNNExplainer runner
-│   ├── run_remaining.sh        # Serial experiment runner (used June 2026)
-│   └── run_m5_ablation.sh      # M5 ablation dispatcher
-│
+│   ├── run_attribution.py      # Integrated Gradients runner
+│   ├── run_gsea.py             # Enrichment runner
+│   └── run_m5_ablation.sh      # Five-extension × three-seed ablation
+├── scripts/
+│   ├── rank_unlabelled_candidates.py   # Candidate ranking
+│   ├── compute_network_homophily.py    # Label-mixing diagnostics
+│   └── smoke_test.py                   # CPU-only smoke test
 ├── results/
-│   ├── m5_ablation_summary.csv # ★ Complete M5 results
-│   └── experiment_summary.md   # Detailed M1-M4 results
-│
+│   ├── publication_v1/         # ★ Frozen evidence package for the manuscript
+│   ├── m5_ablation_summary.csv # Per-run AUPR/AUROC of all extensions
+│   └── experiment_summary.md   # Detailed M1–M4 results
 ├── configs/
-└── requirements.txt
+└── environment.yml / requirements.txt
 ```
-
----
-
-## Setup
-
-### Environment
-
-```bash
-conda create -n cancer-gnn python=3.10
-conda activate cancer-gnn
-pip install torch torch_geometric captum optuna gseapy h5py scikit-learn pandas
-```
-
-For RTX 5090 (CUDA 12.8):
-```bash
-pip install torch --index-url https://download.pytorch.org/whl/cu128
-pip install torch_geometric
-```
-
-### Data
-
-Download from the EMOGI benchmark (Zenodo record 3707301). Six HDF5 files expected under `results/EMOGI_*/` containing adjacency matrix, 64-dim multi-omics features (MF, METH, GE, CNA × 16 cancer types), and binary labels.
-
----
-
-## Quick Start
-
-```bash
-# Best configuration (6-network, no BatchNorm)
-python experiments/run_improved.py --gcn 1 \
-    --dataset IREF_2015 IREF STRING PCNET MULTINET CPDB \
-    --norm_type none --use_residual True --use_net_weights True \
-    --lr_scheduler cosine --label_smoothing 0.05
-
-# Heterophily-aware (best single technique, +2.8%)
-python experiments/run_improved.py --gcn 1 \
-    --dataset IREF_2015 IREF STRING PCNET MULTINET CPDB \
-    --norm_type none --use_residual True --use_net_weights True \
-    --lr_scheduler cosine --label_smoothing 0.05 \
-    --heterophily_aware 1
-
-# Cross-network attention (+1.5%)
-python experiments/run_improved.py ... --cross_network_attention 1
-
-# M5 ablation batch (all 5 evaluated techniques × 3 seeds)
-bash experiments/run_remaining.sh
-```
-
-### Interpretability
-
-```bash
-# Feature attribution
-python experiments/run_attribution.py --model_dir results/my_models/<dir>
-
-# Gene set enrichment
-python experiments/run_gsea.py --model_dir results/my_models/<dir> --mode enrichr --top_n 200
-```
-
-### CPU-Only Reproducibility Checks
-
-```bash
-python -m unittest discover -s tests
-python scripts/smoke_test.py
-python scripts/analyze_m5_results.py
-```
-
-The smoke test and summary script are CPU-only; no GPU or EMOGI HDF5 files are
-required for these checks.
-
----
-
-## Key Findings
-
-1. **Heterophily-aware gating is the most effective single improvement** (+2.8%, p<0.01). The result is consistent with prior evidence that PPI-based cancer driver prediction is affected by heterophily.
-
-2. **Multi-network data trumps architectural complexity.** The +5.9% gain decomposes into +5.4% (data) +1.0% (architecture). Adding more PPI databases is more impactful than model changes.
-
-3. **BatchNorm is harmful in full-batch graph learning** (−4.2%). In full-batch training, running statistics provide no regularisation benefit.
-
-4. **Focal Loss degrades performance** (−5.1%). A plausible explanation is that label smoothing (ε=0.05) already provides calibration and the additional γ modulation over-penalises the minority class; this mechanism was not separately validated by a 2x2 interaction ablation.
-
-5. **GraphMAE pretraining is neutral** (−0.2%). The 64-dimensional multi-omics features are already sufficiently informative for supervised learning.
-
----
 
 ## Documentation
 
-- **Result provenance:** [`results/RESULT_PROVENANCE.md`](results/RESULT_PROVENANCE.md)
-- **Experiment summary:** [`results/experiment_summary.md`](results/experiment_summary.md)
-- **M5 statistical summary:** [`results/m5_statistical_summary.csv`](results/m5_statistical_summary.csv)
-
----
+- **Manuscript evidence:** `results/publication_v1/PROVENANCE.md` (claim-level provenance, used by the IEEE_TCBB paper build)
+- **Experiment summary:** `results/experiment_summary.md`
+- **Result provenance:** `results/RESULT_PROVENANCE.md`
 
 ## Citation
 
+If you use this implementation, please cite the underlying benchmark method and, once available, the accompanying manuscript:
+
 ```bibtex
 @article{chatzianastasis2023emgnn,
-  title   = {{Explainable Multilayer Graph Neural Network for Cancer Gene Prediction}},
+  title   = {Explainable Multilayer Graph Neural Network for Cancer Gene Prediction},
   author  = {Chatzianastasis, Michail and Vazirgiannis, Michalis and Zhang, Zijun},
   journal = {Bioinformatics},
   volume  = {39},
@@ -201,3 +167,7 @@ required for these checks.
   doi     = {10.1093/bioinformatics/btad643}
 }
 ```
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
